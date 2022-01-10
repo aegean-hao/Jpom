@@ -2,7 +2,7 @@
   <a-layout class="node-layout">
     <!-- 侧边栏 节点管理菜单 -->
     <a-layout-sider theme="light" class="node-sider jpom-node-sider">
-      <a-menu theme="light" mode="inline" :default-selected-keys="selectedKeys" :default-open-keys="defaultOpenKey">
+      <a-menu theme="light" mode="inline">
         <template v-for="menu in nodeMenuList">
           <a-sub-menu v-if="menu.childs" :key="menu.id" :class="menu.id">
             <span slot="title">
@@ -21,7 +21,7 @@
       </a-menu>
     </a-layout-sider>
     <!-- 节点管理的各个组件 -->
-    <a-layout-content class="layout-content jpom-node-content">
+    <a-layout-content v-if="this.nodeId" class="layout-content jpom-node-content">
       <welcome v-if="currentId === 'welcome'" :node="node" />
       <project-list v-if="currentId === 'manageList'" :node="node" />
       <jdk-list v-if="currentId === 'jdkList'" :node="node" />
@@ -40,7 +40,7 @@
   </a-layout>
 </template>
 <script>
-import { getNodeMenu } from "../../../api/menu";
+import { getNodeMenu } from "@/api/menu";
 import Welcome from "./welcome";
 import ProjectList from "./project/project-list";
 import JdkList from "./project/jdk-list";
@@ -74,14 +74,18 @@ export default {
     ScriptLog,
   },
   props: {
-    node: {
-      type: Object,
+    // node: {
+    //   type: Object,
+    // },
+    nodeId: {
+      type: String,
     },
   },
   data() {
     return {
+      node: {},
       nodeMenuList: [],
-      selectedKeys: [this.$route.query.id || "welcome"],
+      selectedKeys: ["welcome"],
     };
   },
   computed: {
@@ -92,13 +96,19 @@ export default {
       let keyList = [];
       if (this.$route.query.pId) {
         // 打开对应的父级菜单
-        keyList = [this.$route.query.pId, "systemConfig"];
+        keyList = [];
       }
       return keyList;
     },
   },
   watch: {},
   created() {
+    if (!this.nodeId) {
+      return;
+    }
+    this.node.id = this.nodeId;
+
+    console.log(this.nodeId);
     this.loadNodeMenu();
     setTimeout(() => {
       this.introGuide();
@@ -154,14 +164,14 @@ export default {
     },
     // 点击菜单
     handleMenuClick(id, pId) {
-      this.selectedKeys = [id];
-      this.$router.push({
-        query: {
-          ...this.$route.query,
-          pId: pId,
-          id: id,
-        },
-      });
+      this.selectedKeys = [id, pId];
+      // this.$router.push({
+      //   query: {
+      //     ...this.$route.query,
+      //     pId: pId,
+      //     id: id,
+      //   },
+      // });
     },
   },
 };

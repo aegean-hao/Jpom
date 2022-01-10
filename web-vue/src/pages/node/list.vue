@@ -494,15 +494,25 @@ export default {
     },
     // 管理节点
     handleNode(record) {
-      this.temp = Object.assign(record);
-      this.drawerTitle = `${this.temp.name} (${this.temp.url})`;
-      this.drawerVisible = true;
-      let nodeId = this.$route.query.nodeId;
-      if (nodeId !== record.id) {
-        this.$router.push({
-          query: { ...this.$route.query, nodeId: record.id },
+      // this.temp = Object.assign(record);
+      // this.drawerTitle = `${this.temp.name} (${this.temp.url})`;
+      // this.drawerVisible = true;
+      // let nodeId = this.$route.query.nodeId;
+      // if (nodeId !== record.id) {
+      this.$router
+        .push({
+          name: "node-layout",
+          //node-layout
+          params: { ...this.$route.params, nodeId: record.id, name: record.name },
+        })
+        .then(() => {
+          // let query = Object.assign({}, this.$route.query);
+          // delete query.nodeId, delete query.name;
+          // this.$router.replace({
+          //   query: query,
+          // });
         });
-      }
+      // }
     },
     syncNode(node) {
       syncProject(node.nodeId).then((res) => {

@@ -10,7 +10,7 @@
       <side-menu class="side-menu" />
     </a-layout-sider>
     <a-layout>
-      <a-layout-header class="app-header">
+      <a-layout class="app-header">
         <!-- <a-tooltip placement="right" title="折叠左侧菜单栏">
           <a-icon class="icon-btn" :type="collapsed ? 'menu-unfold' : 'menu-fold'" @click="changeCollapsed" />
         </a-tooltip> -->
@@ -19,12 +19,12 @@
         </a-tooltip> -->
         <content-tab />
         <!-- <user-header /> -->
-      </a-layout-header>
-      <a-layout-content class="layout-content">
+      </a-layout>
+      <!-- <a-layout-content class="layout-content">
         <keep-alive>
           <router-view />
         </keep-alive>
-      </a-layout-content>
+      </a-layout-content> -->
     </a-layout>
   </a-layout>
 </template>

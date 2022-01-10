@@ -39,34 +39,43 @@ const app = {
     // 添加 tab
     addTab({ commit, state, rootGetters, dispatch }, tab) {
       return new Promise((resolve) => {
-        // 从 store 里面拿到 menus 匹配 path 得到当前的菜单，设置 tab 的标题
-        const menus = rootGetters.getMenus;
-        let currentMenu = null;
-        menus.forEach((menu) => {
-          menu.childs.forEach((subMenu) => {
-            if (subMenu.path === tab.path) {
-              currentMenu = subMenu;
-              currentMenu.parent = menu;
-            }
-          });
-        });
-        if (!currentMenu) {
-          return;
-        }
-        tab.title = currentMenu.title;
-        tab.id = currentMenu.id;
-        tab.parentId = currentMenu.parent.id;
         let tabList = state.tabList || [];
-        // 获取下标 -1 表示可以添加 否则就是已经存在
-        const index = tabList.findIndex((ele) => ele.key === tab.key);
-        if (index > -1) {
-          // 设置 activeTabKey
+        let nowIndex;
+        //
+        if (tab.path === "/node-layout") {
+          //
+          tab.parentId = "nodeManager";
+          tab.id = tab.nodeId;
+          // tab.key = tab.nodeId;
+          nowIndex = tabList.findIndex((ele) => ele.nodeId === tab.nodeId);
         } else {
+          // 从 store 里面拿到 menus 匹配 path 得到当前的菜单，设置 tab 的标题
+          const menus = rootGetters.getMenus;
+          let currentMenu = null;
+          menus.forEach((menu) => {
+            menu.childs.forEach((subMenu) => {
+              if (subMenu.path === tab.path) {
+                currentMenu = subMenu;
+                currentMenu.parent = menu;
+              }
+            });
+          });
+          if (!currentMenu) {
+            return;
+          }
+          tab.title = currentMenu.title;
+          tab.id = currentMenu.id;
+          tab.parentId = currentMenu.parent.id;
+          // 获取下标 -1 表示可以添加 否则就是已经存在
+          nowIndex = tabList.findIndex((ele) => ele.key === tab.key);
+        }
+        if (nowIndex === -1) {
           // 新增
           tabList.push(tab);
           commit("setTabList", tabList);
           localStorage.setItem(TAB_LIST_KEY, JSON.stringify(tabList));
         }
+
         // 设置当前选择的菜单
         dispatch("activeTabKey", tab.key);
         dispatch("activeMenu", tab.id);

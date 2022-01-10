@@ -23,7 +23,8 @@ export default {
     ...mapGetters(["getMenus", "getActiveMenuKey", "getMenuOpenKeys", "getCollapsed"]),
     selectedKeys: {
       get() {
-        return [this.getActiveMenuKey];
+        console.log(this.getActiveMenuKey);
+        return [this.getActiveMenuKey || ""];
       },
       set() {},
     },

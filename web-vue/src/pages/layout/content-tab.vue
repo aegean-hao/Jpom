@@ -37,6 +37,10 @@
           </a-menu>
         </a-dropdown>
       </template>
+
+      <keep-alive>
+        <router-view :nodeId="tab.nodeId" />
+      </keep-alive>
     </a-tab-pane>
     <template slot="tabBarExtraContent"> <user-header /> </template>
   </a-tabs>
@@ -106,7 +110,8 @@ export default {
 .my-tabs {
   flex: auto;
   /* margin-right: 20px; */
-  align-self: center;
-  height: 40px;
+  /* align-self: center; */
+  /* height: 40px; */
+  margin-top: 10px;
 }
 </style>

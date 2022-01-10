@@ -11,11 +11,11 @@ Router.prototype.push = function push(location) {
 Vue.use(Router);
 
 const children = [
-  {
-    path: "/dashboard",
-    name: "dashboard",
-    component: () => import("../pages/dashboard"),
-  },
+  // {
+  //   path: "/dashboard",
+  //   name: "dashboard",
+  //   component: () => import("../pages/dashboard"),
+  // },
   {
     path: "/node/list",
     name: "node-list",
@@ -96,11 +96,11 @@ const children = [
     name: "user-list",
     component: () => import("../pages/user"),
   },
-  // {
-  //   path: "/role/list",
-  //   name: "role-list",
-  //   component: () => import("../pages/role"),
-  // },
+  {
+    path: "/node-layout:nodeId",
+    name: "node-layout",
+    component: () => import("../pages/node/node-layout/index"),
+  },
   {
     path: "/operation/log",
     name: "operation-log",
@@ -148,11 +148,11 @@ const children = [
 const router = new Router({
   mode: "hash",
   routes: [
-    {
-      path: "/test",
-      name: "test",
-      component: () => import("../pages/test"),
-    },
+    // {
+    //   path: "/test",
+    //   name: "test",
+    //   component: () => import("../pages/test"),
+    // },
     {
       path: "/login",
       name: "login",
@@ -164,6 +164,7 @@ const router = new Router({
       component: () => import("../pages/layout"),
       redirect: "/node/list",
       children: children,
+      // components: components,
     },
     {
       path: "/install",
