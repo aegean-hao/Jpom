@@ -1,5 +1,12 @@
 <template>
-  <div id="xterm" class="xterm" />
+  <div class="flex-100">
+    <a-result v-if="disconnect" status="warning" title="已经断开连接啦">
+      <template #extra>
+        <a-button type="primary" @click="initSocket">重连 </a-button>
+      </template>
+    </a-result>
+    <div class="flex-100" id="xterm" v-else></div>
+  </div>
 </template>
 <script>
 import "xterm/css/xterm.css";
@@ -28,6 +35,7 @@ export default {
       cols: 100,
       wp: 0,
       hp: 0,
+      disconnect: false,
     };
   },
   computed: {},
@@ -37,16 +45,21 @@ export default {
         this.initSocket();
       }, 200);
     });
+    // 监听窗口关闭事件，当窗口关闭时，主动去关闭websocket连接，防止连接还没断开就关闭窗口，server端会抛异常。
+    window.onbeforeunload = () => {
+      this.socket?.close();
+      this.dispose();
+    };
   },
   beforeDestroy() {
-    this.socket && this.socket.close();
-    this.terminal && this.terminal.dispose();
-    clearInterval(this.heart);
+    this.socket?.close();
+    this.dispose();
   },
   methods: {
     // 初始化 WebSocket
     initSocket() {
       this.socket = new WebSocket(this.url);
+      this.disconnect = false;
       // 连接成功后
       this.socket.onopen = () => {
         this.initTerminal();
@@ -56,16 +69,19 @@ export default {
         this.$notification.error({
           message: "web socket 错误,请检查是否开启 ws 代理",
         });
-        clearInterval(this.heart);
+        this.dispose();
       };
       this.socket.onclose = (err) => {
         //当客户端收到服务端发送的关闭连接请求时，触发onclose事件
         console.error(err);
-        this.$notification.info({
-          message: "会话已经关闭",
-        });
-        clearInterval(this.heart);
+        this.$message.warning("会话已经关闭[ssh-terminal]");
+        this.dispose();
       };
+    },
+    dispose() {
+      this.terminal && this.terminal.dispose();
+      clearInterval(this.heart);
+      this.disconnect = true;
     },
     // 初始化 Terminal
     initTerminal() {
@@ -118,7 +134,7 @@ export default {
       this.sendJson({ data: "resize", cols: this.cols, rows: this.rows, wp: this.wp, hp: this.hp });
       // 创建心跳，防止掉线
       this.heart = setInterval(() => {
-        let op = {
+        const op = {
           data: "jpom-heart",
         };
         this.sendJson(op);
@@ -132,7 +148,7 @@ export default {
 </script>
 
 <style scoped>
-.xterm {
+.flex-100 {
   display: flex;
   flex-flow: column;
   height: 100%;

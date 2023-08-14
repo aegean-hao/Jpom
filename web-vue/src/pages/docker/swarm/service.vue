@@ -8,6 +8,7 @@
 
           <a-button type="primary" @click="loadData" :loading="loading">搜索</a-button>
           <a-button type="primary" @click="handleAdd">创建</a-button>
+          <a-statistic-countdown format=" s 秒" title="刷新倒计时" :value="countdownTime" @finish="loadData" />
         </a-space>
       </template>
       <a-tooltip slot="tooltip" slot-scope="text" placement="topLeft" :title="text">
@@ -45,9 +46,7 @@
         </span>
       </a-tooltip>
       <a-tooltip slot="updatedAt" slot-scope="text, item" placement="topLeft" :title="`修改时间：${text} 创建时间：${item.createdAt}`">
-        <span>
-          <a-tag>{{ text }}</a-tag>
-        </span>
+        {{ text }}
       </a-tooltip>
 
       <a-tooltip slot="replicas" slot-scope="text, record" placement="topLeft" :title="`点击数字查看运行中的任务,点击图标查看关联的所有任务`">
@@ -64,7 +63,7 @@
       </template>
     </a-table>
     <!-- 编辑节点 -->
-    <a-modal v-model="editVisible" title="编辑服务" width="70vw" @ok="handleEditOk" :maskClosable="false">
+    <a-modal destroyOnClose v-model="editVisible" title="编辑服务" width="70vw" @ok="handleEditOk" :maskClosable="false">
       <a-form-model ref="editForm" :rules="rules" :model="temp" :label-col="{ span: 4 }" :wrapper-col="{ span: 18 }">
         <a-form-model-item label="服务名称" prop="name">
           <a-input v-model="temp.name" :disabled="temp.serviceId ? true : false" placeholder="服务名称" />
@@ -81,6 +80,9 @@
         </a-form-model-item>
         <a-form-model-item label="镜像名称" prop="image">
           <a-input v-model="temp.image" placeholder="镜像名称" />
+        </a-form-model-item>
+        <a-form-model-item label="hostname" prop="hostname">
+          <a-input v-model="temp.hostname" placeholder="主机名 hostname" />
         </a-form-model-item>
         <a-form-model-item label="更多配置" prop="">
           <a-tabs>
@@ -120,16 +122,7 @@
                         </a-col>
                         <a-col :span="8" :offset="1">
                           <a-input addon-before="容器" v-model="item.targetPort" placeholder="容器端口">
-                            <a-select
-                              :getPopupContainer="
-                                (triggerNode) => {
-                                  return triggerNode.parentNode || document.body;
-                                }
-                              "
-                              slot="addonAfter"
-                              v-model="item.protocol"
-                              placeholder="端口协议"
-                            >
+                            <a-select slot="addonAfter" v-model="item.protocol" placeholder="端口协议">
                               <a-select-option value="TCP">TCP</a-select-option>
                               <a-select-option value="UDP">UDP</a-select-option>
                               <a-select-option value="SCTP">SCTP</a-select-option>
@@ -393,21 +386,21 @@
       </a-form-model>
     </a-modal>
     <!-- 查看任务 -->
-    <a-modal v-model="taskVisible" title="查看任务" width="80vw" :footer="null" :maskClosable="false">
-      <swarm-task v-if="taskVisible" :visible="taskVisible" :taskState="this.temp.state" :id="this.id" :serviceId="this.temp.id" />
+    <a-modal destroyOnClose v-model="taskVisible" title="查看任务" width="80vw" :footer="null" :maskClosable="false">
+      <swarm-task v-if="taskVisible" :visible="taskVisible" :taskState="this.temp.state" :id="this.id" :serviceId="this.temp.id" :urlPrefix="this.urlPrefix" />
     </a-modal>
     <!-- 查看日志 -->
-    <a-modal v-model="logVisible" title="查看日志" width="80vw" :footer="null" :maskClosable="false">
+    <a-modal destroyOnClose v-model="logVisible" title="查看日志" width="80vw" :footer="null" :maskClosable="false">
       <pull-log v-if="logVisible" :id="this.id" :dataId="this.temp.id" type="service" />
     </a-modal>
   </div>
 </template>
 
 <script>
-import {dockerSwarmServicesDel, dockerSwarmServicesEdit, dockerSwarmServicesList} from "@/api/docker-swarm";
+import { dockerSwarmServicesDel, dockerSwarmServicesEdit, dockerSwarmServicesList } from "@/api/docker-swarm";
 import SwarmTask from "./task";
 import PullLog from "./pull-log";
-import {renderSize} from "@/utils/time";
+import { renderSize } from "@/utils/const";
 
 export default {
   components: { SwarmTask, PullLog },
@@ -418,6 +411,9 @@ export default {
     visible: {
       type: Boolean,
       default: false,
+    },
+    urlPrefix: {
+      type: String,
     },
   },
   data() {
@@ -433,7 +429,7 @@ export default {
       initSwarmVisible: false,
       taskVisible: false,
       logVisible: false,
-      autoUpdateTime: null,
+
       rules: {
         name: [{ required: true, message: "服务名称必填", trigger: "blur" }],
         mode: [{ required: true, message: "运行模式必填", trigger: "blur" }],
@@ -443,7 +439,8 @@ export default {
         { title: "序号", width: 80, ellipsis: true, align: "center", customRender: (text, record, index) => `${index + 1}` },
         { title: "服务Id", dataIndex: "id", ellipsis: true, scopedSlots: { customRender: "id" } },
         { title: "名称", dataIndex: "spec.name", ellipsis: true, scopedSlots: { customRender: "tooltip" } },
-        { title: "模式", dataIndex: "spec.mode.mode", ellipsis: true, width: 120, scopedSlots: { customRender: "tooltip" } },
+        { title: "运行模式", dataIndex: "spec.mode.mode", ellipsis: true, width: 120, scopedSlots: { customRender: "tooltip" } },
+        { title: "网络模式", dataIndex: "spec.endpointSpec.mode", ellipsis: true, width: 120, scopedSlots: { customRender: "tooltip" } },
         { title: "副本数", dataIndex: "spec.mode.replicated.replicas", align: "center", width: 90, ellipsis: true, scopedSlots: { customRender: "replicas" } },
         { title: "解析模式", dataIndex: "spec.endpointSpec.mode", ellipsis: true, width: 100, scopedSlots: { customRender: "tooltip" } },
 
@@ -453,16 +450,15 @@ export default {
 
           ellipsis: true,
           scopedSlots: { customRender: "updatedAt" },
-          width: 170,
+          width: "170px",
         },
         { title: "操作", dataIndex: "operation", scopedSlots: { customRender: "operation" }, align: "center", width: 120 },
       ],
+      countdownTime: Date.now(),
     };
   },
   computed: {},
-  beforeDestroy() {
-    this.autoUpdateTime && clearTimeout(this.autoUpdateTime);
-  },
+  beforeDestroy() {},
   mounted() {
     this.loadData();
   },
@@ -474,15 +470,12 @@ export default {
       }
       this.loading = true;
       this.listQuery.id = this.id;
-      dockerSwarmServicesList(this.listQuery).then((res) => {
+      dockerSwarmServicesList(this.urlPrefix, this.listQuery).then((res) => {
         if (res.code === 200) {
           this.list = res.data;
         }
         this.loading = false;
-        clearTimeout(this.autoUpdateTime);
-        this.autoUpdateTime = setTimeout(() => {
-          this.loadData();
-        }, 3000);
+        this.countdownTime = Date.now() + 5 * 1000;
       });
     },
     //  任务
@@ -543,6 +536,7 @@ export default {
       this.temp = {
         serviceId: record.id,
         name: spec.name,
+        hostname: spec.taskTemplate?.containerSpec?.hostname,
         mode: spec.mode?.mode,
         replicas: spec.mode?.replicated?.replicas,
         image: image,
@@ -640,7 +634,7 @@ export default {
         temp.exposedPorts = (this.temp.exposedPorts || []).filter((item) => {
           return item.publishedPort && item.targetPort;
         });
-        dockerSwarmServicesEdit(temp).then((res) => {
+        dockerSwarmServicesEdit(this.urlPrefix, temp).then((res) => {
           if (res.code === 200) {
             // 成功
             this.$notification.success({
@@ -665,7 +659,7 @@ export default {
             serviceId: record.id,
             id: this.id,
           };
-          dockerSwarmServicesDel(params).then((res) => {
+          dockerSwarmServicesDel(this.urlPrefix, params).then((res) => {
             if (res.code === 200) {
               this.$notification.success({
                 message: res.msg,
@@ -679,3 +673,13 @@ export default {
   },
 };
 </script>
+<style scoped>
+/deep/ .ant-statistic div {
+  display: inline-block;
+}
+
+/deep/ .ant-statistic-content-value,
+/deep/ .ant-statistic-content {
+  font-size: 16px;
+}
+</style>

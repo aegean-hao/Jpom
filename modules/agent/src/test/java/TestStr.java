@@ -20,6 +20,8 @@
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
+import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.convert.Convert;
 import cn.hutool.core.lang.PatternPool;
 import cn.hutool.core.lang.RegexPool;
 import cn.hutool.core.net.url.UrlBuilder;
@@ -27,10 +29,10 @@ import cn.hutool.core.util.NumberUtil;
 import cn.hutool.core.util.ReUtil;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpUtil;
-import com.alibaba.fastjson.JSONObject;
-import io.jpom.common.commander.impl.LinuxSystemCommander;
+import com.alibaba.fastjson2.JSONObject;
 import org.junit.Test;
 
+import java.util.TimeZone;
 import java.util.regex.Pattern;
 
 /**
@@ -67,8 +69,8 @@ public class TestStr {
 
     @Test
     public void testParse() {
-        String linuxCpu = LinuxSystemCommander.getLinuxCpu("%Cpu(s):  0.0 us,  0.0 sy,  0.0 ni,100.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st\n");
-        System.out.println(linuxCpu);
+        //String linuxCpu = LinuxSystemCommander.getLinuxCpu("%Cpu(s):  0.0 us,  0.0 sy,  0.0 ni,100.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st\n");
+        //System.out.println(linuxCpu);
     }
 
     @Test
@@ -79,5 +81,21 @@ public class TestStr {
         System.out.println(build);
         HttpRequest httpRequest = HttpUtil.createGet(build);
         System.out.println(httpRequest.form());
+    }
+
+    @Test
+    public void testNum() {
+        System.out.println(Convert.toInt("122+"));
+        System.out.println(NumberUtil.parseInt("1122+"));
+    }
+
+    @Test
+    public void testTimeZone() {
+        System.out.println(TimeZone.getDefault().getID());
+    }
+
+    @Test
+    public void testList() {
+        System.out.println(CollUtil.addAll(null, CollUtil.newArrayList("")));
     }
 }

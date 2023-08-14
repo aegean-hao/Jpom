@@ -43,14 +43,14 @@ export function getNodeListWithVersion(params) {
   });
 }
 
-// node 状态
-export function getNodeStatus(nodeId) {
-  return axios({
-    url: "/node/node_status",
-    method: "post",
-    data: { nodeId },
-  });
-}
+// // node 状态
+// export function getNodeStatus(nodeId) {
+//   return axios({
+//     url: "/node/node_status",
+//     method: "post",
+//     data: { nodeId },
+//   });
+// }
 
 // 节点 + 项目列表
 export function getNodeProjectList(params) {
@@ -88,17 +88,18 @@ export function syncProject(nodeId) {
   });
 }
 
-export function unLockWorkspace(params) {
+export function syncToWorkspace(params) {
   return axios({
-    url: "/node/un_lock_workspace",
+    url: "/node/sync-to-workspace",
     method: "get",
     params: params,
   });
 }
 
-export function syncToWorkspace(params) {
+//
+export function sortItem(params) {
   return axios({
-    url: "/node/sync-to-workspace",
+    url: "/node/sort-item",
     method: "get",
     params: params,
   });
@@ -110,6 +111,15 @@ export function delAllProjectCache() {
     url: "/node/clear_all_project",
     method: "get",
     params: {},
+  });
+}
+
+// 项目排序
+export function sortItemProject(params) {
+  return axios({
+    url: "/node/project-sort-item",
+    method: "get",
+    params: params,
   });
 }
 
@@ -190,8 +200,10 @@ export function getProcessList(data) {
     url: "/node/processList",
     method: "post",
     data: data,
+    timeout: 0,
     headers: {
       loading: "no",
+      tip: "no",
     },
   });
 }
@@ -215,11 +227,14 @@ export function killPid(params) {
  *  time: 时间段，格式：yyyy-MM-dd HH:mm:ss ~ yyyy-MM-dd HH:mm:ss
  * } params
  */
-export function nodeMonitorData(params) {
+export function nodeMonitorData(params, loading) {
   return axios({
     url: "/node/node_monitor_data.json",
     method: "post",
     data: params,
+    headers: {
+      loading: loading === false ? "no" : "",
+    },
   });
 }
 
@@ -232,14 +247,29 @@ export function nodeMonitorData(params) {
  */
 export function uploadAgentFile(formData) {
   return axios({
-    url: "/node/upload_agent",
+    url: "/node/upload-agent-sharding",
     headers: {
       "Content-Type": "multipart/form-data;charset=UTF-8",
+      loading: "no",
     },
     method: "post",
     // 0 表示无超时时间
     timeout: 0,
     data: formData,
+  });
+}
+
+/**
+ *  上传文件合并
+ * @returns json
+ */
+export function uploadAgentFileMerge(data) {
+  return axios({
+    url: "/node/upload-agent-sharding-merge",
+    method: "post",
+    data: data,
+    // 0 表示无超时时间
+    timeout: 0,
   });
 }
 

@@ -25,12 +25,12 @@
       </template>
     </a-table>
     <!-- 编辑区 -->
-    <a-modal v-model="editVisible" width="60%" title="编辑日志阅读" @ok="handleEditOk" :maskClosable="false">
+    <a-modal destroyOnClose v-model="editVisible" width="60%" title="编辑日志搜索" @ok="handleEditOk" :maskClosable="false">
       <a-form-model ref="editForm" :rules="rules" :model="temp" :label-col="{ span: 4 }" :wrapper-col="{ span: 18 }">
         <a-form-model-item label="日志名称" prop="name">
           <a-input v-model="temp.name" :maxLength="50" placeholder="日志项目名称" />
         </a-form-model-item>
-        <a-form-model-item label="分发节点" required>
+        <a-form-model-item label="绑定节点" required>
           <a-row v-for="(item, index) in temp.projectList" :key="index">
             <a-col :span="11">
               <span>节点: </span>
@@ -59,17 +59,7 @@
             </a-col>
             <a-col :span="11">
               <span>项目: </span>
-              <a-select
-                :getPopupContainer="
-                  (triggerNode) => {
-                    return triggerNode.parentNode || document.body;
-                  }
-                "
-                :disabled="!item.nodeId"
-                style="width: 80%"
-                v-model="item.projectId"
-                :placeholder="`请选择项目`"
-              >
+              <a-select :disabled="!item.nodeId" style="width: 80%" v-model="item.projectId" :placeholder="`请选择项目`">
                 <!-- <a-select-option value=""> 请先选择节点</a-select-option> -->
                 <template v-if="nodeProjectList[item.nodeId]">
                   <a-select-option
@@ -97,6 +87,7 @@
     </a-modal>
     <!-- 实时阅读 -->
     <a-drawer
+      destroyOnClose
       placement="right"
       :width="`${this.getCollapsed ? 'calc(100vw - 80px)' : 'calc(100vw - 200px)'}`"
       :visible="logReadVisible"
@@ -125,12 +116,11 @@
   </div>
 </template>
 <script>
-import {deleteLogRead, editLogRead, getLogReadList} from "@/api/log-read";
-import {itemGroupBy, parseTime} from "@/utils/time";
-import {getNodeListAll, getProjectListAll} from "@/api/node";
-import {CHANGE_PAGE, COMPUTED_PAGINATION, PAGE_DEFAULT_LIST_QUERY} from "@/utils/const";
+import { deleteLogRead, editLogRead, getLogReadList } from "@/api/log-read";
+import { getNodeListAll, getProjectListAll } from "@/api/node";
+import { CHANGE_PAGE, COMPUTED_PAGINATION, PAGE_DEFAULT_LIST_QUERY, itemGroupBy, parseTime } from "@/utils/const";
 
-import {mapGetters} from "vuex";
+import { mapGetters } from "vuex";
 import logReadView from "./logReadView";
 
 export default {
@@ -281,7 +271,7 @@ export default {
     handleDelete(record) {
       this.$confirm({
         title: "系统提示",
-        content: "真的要删除日志阅读么？",
+        content: "真的要删除日志搜索么？",
         okText: "确认",
         cancelText: "取消",
         onOk: () => {

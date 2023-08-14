@@ -24,7 +24,7 @@
         <rect stroke="#CED4D9" x="108" y="1" width="9" height="9" rx="1"></rect>
       </g>
     </svg>
-    <a-card class="card-box" :style="`${setpCurrent === 1 ? 'width: 60vw' : 'width: 550px'}`" hoverable :bodyStyle="{ padding: '24px 0' }">
+    <a-card v-if="canInstall" class="card-box" :style="`${setpCurrent === 1 ? 'width: 60vw' : 'width: 550px'}`" hoverable :bodyStyle="{ padding: '24px 0' }">
       <template slot="title">
         <a-steps :current="setpCurrent">
           <a-step title="初始化系统" status="process" description="设置一个超级管理员账号">
@@ -147,15 +147,24 @@
         </a-col>
       </a-row>
     </a-card>
+    <div v-else>
+      <a-result class="card-box" status="404" title="不能初始化" sub-title="当前系统已经初始化过啦,不能重复初始化">
+        <template #extra>
+          <a-button type="primary" @click="goHome"> 回到首页 </a-button>
+        </template>
+      </a-result>
+    </div>
   </div>
 </template>
 <script>
 import { initInstall } from "@/api/install";
-import { bindMfa } from "@/api/user";
+import { bindMfa } from "@/api/user/user";
 import { MFA_APP_TIP_ARRAY } from "@/utils/const";
 import QRCode from "qrcodejs2";
-import sha1 from "sha1";
+import sha1 from "js-sha1";
 import Vue from "vue";
+import { checkSystem } from "@/api/install";
+
 export default {
   data() {
     return {
@@ -165,16 +174,25 @@ export default {
       mfaData: {},
       tempVue: Vue,
       MFA_APP_TIP_ARRAY,
+      canInstall: false,
     };
   },
   computed: {},
   watch: {},
   created() {
-    this.$nextTick(() => {
-      setTimeout(() => {
-        this.introGuide();
-      }, 500);
-      // this.creatQrCode();
+    //
+    checkSystem().then((res) => {
+      if (res.code === 222) {
+        this.canInstall = true;
+        this.$nextTick(() => {
+          setTimeout(() => {
+            this.introGuide();
+          }, 500);
+          // this.creatQrCode();
+        });
+      } else {
+        this.canInstall = false;
+      }
     });
   },
   methods: {
@@ -291,6 +309,9 @@ export default {
           this.$router.push({ path: "/" });
         },
       });
+    },
+    goHome() {
+      this.$router.replace({ path: "/" });
     },
     // /^.*(?=.{6,})(?=.*\d)(?=.*[A-Z])(?=.*[a-z])(?=.*[!@#$%^&*? +]).*$/
     // 验证密码安全强度

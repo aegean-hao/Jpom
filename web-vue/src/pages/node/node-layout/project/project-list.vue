@@ -9,32 +9,34 @@
       size="middle"
       :columns="columns"
       :pagination="pagination"
-      @change="changePage"
+      @change="
+        (pagination, filters, sorter) => {
+          this.listQuery = CHANGE_PAGE(this.listQuery, { pagination, sorter });
+          this.expandedRowKeys = [];
+          this.loadData();
+        }
+      "
       :row-selection="rowSelection"
       bordered
       rowKey="id"
     >
       <template slot="title">
-        <!-- <a-select   :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            " v-model="listQuery.group" allowClear placeholder="请选择分组" class="filter-item" @change="loadData">
-        <a-select-option v-for="group in groupList" :key="group">{{ group }}</a-select-option>
-      </a-select> -->
         <a-space>
+          <a-select v-model="listQuery.group" allowClear placeholder="请选择分组" class="search-input-item" @change="loadData">
+            <a-select-option v-for="group in groupList" :key="group">{{ group }}</a-select-option>
+          </a-select>
           <a-input class="search-input-item" v-model="listQuery['%projectId%']" placeholder="项目ID" />
           <a-input class="search-input-item" v-model="listQuery['%name%']" placeholder="项目名称" />
+          <a-select v-model="listQuery.runMode" allowClear placeholder="项目类型" class="search-input-item">
+            <a-select-option v-for="item in runModeList" :key="item">{{ item }}</a-select-option>
+          </a-select>
           <a-tooltip title="按住 Ctr 或者 Alt/Option 键点击按钮快速回到第一页">
             <a-button type="primary" :loading="loading" @click="loadData">搜索</a-button>
           </a-tooltip>
           <a-button type="primary" @click="handleAdd">新增</a-button>
 
           <a-dropdown>
-            <a class="ant-dropdown-link" @click="(e) => e.preventDefault()">
-              批量操作
-              <a-icon type="down" />
-            </a>
+            <a-button type="primary"> 批量操作 <a-icon type="down" /> </a-button>
             <a-menu slot="overlay">
               <a-menu-item>
                 <a-button type="primary" @click="batchStart">批量启动</a-button>
@@ -47,9 +49,24 @@
               </a-menu-item>
             </a-menu>
           </a-dropdown>
-        </a-space>
 
-        状态数据是异步获取有一定时间延迟
+          <a-button icon="download" type="primary" @click="handlerExportData()">导出</a-button>
+          <a-dropdown>
+            <a-menu slot="overlay">
+              <a-menu-item key="1"> <a-button type="primary" @click="handlerImportTemplate()">下载导入模板</a-button> </a-menu-item>
+            </a-menu>
+
+            <a-upload name="file" accept=".csv" action="" :showUploadList="false" :multiple="false" :before-upload="beforeUpload">
+              <a-button type="primary" icon="upload"> 导入 <a-icon type="down" /> </a-button>
+            </a-upload>
+          </a-dropdown>
+          <a-tooltip>
+            <template slot="title">
+              <div>状态数据是异步获取有一定时间延迟</div>
+            </template>
+            <a-icon type="question-circle" theme="filled" />
+          </a-tooltip>
+        </a-space>
       </template>
       <template slot="copyIcon" slot-scope="javaCopyItemList, record">
         <template v-if="javaCopyItemList">
@@ -62,28 +79,32 @@
           </a-tooltip>
         </template>
       </template>
-      <a-tooltip slot="name" slot-scope="text" placement="topLeft" :title="`名称：${text}`">
-        <span>{{ text }}</span>
+      <a-tooltip slot="name" slot-scope="text, record" placement="topLeft" :title="`名称：${text}`" @click="handleEdit(record)">
+        <a-button type="link" style="padding: 0" size="small"><a-icon v-if="record.outGivingProject" type="apartment" />{{ text }} </a-button>
       </a-tooltip>
-      <template slot="time" slot-scope="text, record" placement="topLeft">
-        <a-tooltip :title="`创建时间：${parseTime(record.createTimeMillis)}，${record.modifyTimeMillis ? '修改时间：' + parseTime(record.modifyTimeMillis) : ''}`">
-          <span>{{ parseTime(record.modifyTimeMillis) }}</span>
-          <!-- <br /> -->
-          <!-- <span>{{ parseTime(record.createTimeMillis) }}</span> -->
-        </a-tooltip>
-      </template>
-      <a-tooltip slot="modifyUser" slot-scope="text" placement="topLeft" :title="text">
-        <span>{{ text }}</span>
+
+      <a-tooltip slot="path" slot-scope="text, item" placement="topLeft" :title="item.whitelistDirectory + item.lib">
+        <span>{{ item.whitelistDirectory + item.lib }}</span>
       </a-tooltip>
+      <!-- <a-tooltip slot="modifyUser" slot-scope="text" placement="topLeft" :title="text">
+        <span>{{ text }}</span>
+      </a-tooltip> -->
       <template slot="status" slot-scope="text, record">
-        <a-tooltip v-if="noFileModes.includes(record.runMode)" title="状态操作请到控制台中控制">
-          <a-switch :checked="text" disabled checked-children="开" un-checked-children="关" />
-        </a-tooltip>
-        <span v-else>-</span>
+        <template v-if="record.error">
+          <a-tooltip :title="record.error">
+            <a-icon type="warning" />
+          </a-tooltip>
+        </template>
+        <template v-else>
+          <a-tooltip v-if="noFileModes.includes(record.runMode)" title="状态操作请到控制台中控制">
+            <a-switch :checked="text" disabled checked-children="开" un-checked-children="关" />
+          </a-tooltip>
+          <span v-else>-</span>
+        </template>
       </template>
 
-      <a-tooltip slot="port" slot-scope="text, record" placement="topLeft" :title="`进程号：${record.pid},  端口号：${record.port}`">
-        <span v-if="record.pid">{{ record.port }}/{{ record.pid }}</span>
+      <a-tooltip slot="port" slot-scope="text, record" placement="topLeft" :title="`进程号：${(record.pids || [record.pid || '-']).join(',')} / 端口号：${record.port || '-'}`">
+        <span>{{ record.port || "-" }}/{{ (record.pids || [record.pid || "-"]).join(",") }}</span>
       </a-tooltip>
 
       <template slot="expandedRowRender" slot-scope="record">
@@ -99,7 +120,8 @@
           <template slot="operation" slot-scope="text, copyRecord">
             <a-space>
               <a-button size="small" type="primary" @click="handleConsoleCopy(record, copyRecord)">控制台</a-button>
-              <a-button size="small" type="danger" @click="handleDeleteCopy(record, copyRecord)">删除</a-button>
+              <a-button size="small" type="primary" @click="handleLogBack(record, copyRecord)">日志</a-button>
+              <a-button size="small" type="danger" @click="handleDeleteCopy(record, copyRecord, 'thorough')">删除</a-button>
             </a-space>
           </template>
         </a-table>
@@ -121,30 +143,72 @@
                 <a-button size="small" type="primary" @click="handleEdit(record)">编辑</a-button>
               </a-menu-item>
               <a-menu-item>
-                <a-button size="small" type="primary" @click="handleMonitor(record)" v-if="javaModes.includes(record.runMode)" :disabled="!record.status">监控 </a-button>
+                <a-button size="small" type="primary" @click="copyItem(record)">复制</a-button>
               </a-menu-item>
-              <!-- <a-menu-item>
-                <a-button size="small" type="primary" @click="handleReplica(record)" v-if="javaModes.includes(record.runMode)" :disabled="!record.javaCopyItemList">副本集 </a-button>
-              </a-menu-item> -->
-              <a-menu-item>
-                <a-tooltip v-if="record.outGivingProject" title="节点分发项目需要到节点分发中去删除">
-                  <a-button size="small" type="danger" :disabled="record.outGivingProject === 1">删除</a-button>
-                </a-tooltip>
-                <a-button v-else size="small" type="danger" @click="handleDelete(record)">删除</a-button>
+              <a-menu-item v-if="noFileModes.includes(record.runMode)">
+                <a-button size="small" type="primary" @click="handleLogBack(record)">项目日志 </a-button>
               </a-menu-item>
+              <template v-if="record.outGivingProject">
+                <a-menu-item>
+                  <a-tooltip title="节点分发项目需要到节点分发中去删除">
+                    <a-button size="small" type="danger" :disabled="true">逻辑删除</a-button>
+                  </a-tooltip>
+                </a-menu-item>
+                <a-menu-item>
+                  <a-tooltip title="节点分发项目需要到节点分发中去删除">
+                    <a-button size="small" type="danger" :disabled="true">彻底删除</a-button>
+                  </a-tooltip>
+                </a-menu-item>
+                <a-menu-item>
+                  <a-button size="small" type="danger" @click="handleReleaseOutgiving(record)">释放分发</a-button>
+                </a-menu-item>
+              </template>
+              <template v-else>
+                <a-menu-item>
+                  <a-button size="small" type="danger" @click="handleDelete(record)">逻辑删除</a-button>
+                </a-menu-item>
+                <a-menu-item>
+                  <a-button size="small" type="danger" @click="handleDelete(record, 'thorough')">彻底删除</a-button>
+                </a-menu-item>
+              </template>
             </a-menu>
           </a-dropdown>
         </a-space>
       </template>
     </a-table>
     <!-- 编辑区 -->
-    <a-modal v-model="editProjectVisible" width="60vw" title="编辑项目" @ok="handleEditProjectOk" :maskClosable="false">
+    <a-modal destroyOnClose v-model="editProjectVisible" width="60vw" title="编辑项目" @ok="handleEditProjectOk" :maskClosable="false">
       <a-form-model ref="editProjectForm" :rules="rules" :model="temp" :label-col="{ span: 4 }" :wrapper-col="{ span: 18 }">
         <a-form-model-item label="项目 ID" prop="id">
-          <a-input :maxLength="50" v-model="temp.id" :disabled="temp.type === 'edit'" placeholder="创建之后不能修改" />
+          <a-input :maxLength="50" v-model="temp.id" v-if="temp.type === 'edit'" :disabled="temp.type === 'edit'" placeholder="创建之后不能修改" />
+          <template v-else>
+            <a-input-search
+              :maxLength="50"
+              v-model="temp.id"
+              placeholder="创建之后不能修改"
+              @search="
+                () => {
+                  this.temp = { ...this.temp, id: randomStr(6) };
+                }
+              "
+            >
+              <template slot="enterButton">
+                <a-button type="primary"> 随机生成 </a-button>
+              </template>
+            </a-input-search>
+          </template>
         </a-form-model-item>
+
         <a-form-model-item label="项目名称" prop="name">
-          <a-input v-model="temp.name" :maxLength="50" placeholder="项目名称" />
+          <a-row>
+            <a-col :span="10">
+              <a-input v-model="temp.name" :maxLength="50" placeholder="项目名称" />
+            </a-col>
+            <a-col :span="4" style="text-align: right">分组名称：</a-col>
+            <a-col :span="10">
+              <custom-select suffixIcon="" :maxLength="50" v-model="temp.group" :data="groupList" inputPlaceholder="添加分组" selectPlaceholder="选择分组"> </custom-select>
+            </a-col>
+          </a-row>
         </a-form-model-item>
         <a-form-model-item prop="runMode">
           <template slot="label">
@@ -163,15 +227,7 @@
               <a-icon type="question-circle" theme="filled" />
             </a-tooltip>
           </template>
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            v-model="temp.runMode"
-            placeholder="请选择运行方式"
-          >
+          <a-select v-model="temp.runMode" placeholder="请选择运行方式">
             <a-select-option v-for="runMode in runModeList" :key="runMode">{{ runMode }}</a-select-option>
           </a-select>
         </a-form-model-item>
@@ -182,7 +238,7 @@
               <template slot="title">
                 <ul>
                   <li>白名单路径是指项目文件存放到服务中的文件夹</li>
-                  <li>可以到节点管理中的【系统管理】=>【白名单配置】修改</li>
+                  <li>可以到节点管理中的【插件端配置】=>【白名单配置】修改</li>
                   <li>项目文件夹是项目实际存放的目录名称</li>
                   <li>项目文件会存放到 <br />&nbsp;&nbsp;<b>项目白名单路径+项目文件夹</b></li>
                 </ul>
@@ -191,21 +247,16 @@
             </a-tooltip>
           </template>
           <a-input-group compact>
-            <a-select
-              :getPopupContainer="
-                (triggerNode) => {
-                  return triggerNode.parentNode || document.body;
-                }
-              "
-              style="width: 50%"
-              v-model="temp.whitelistDirectory"
-              placeholder="请选择项目白名单路径"
-            >
-              <a-select-option v-for="access in accessList" :key="access">{{ access }}</a-select-option>
+            <a-select style="width: 50%" v-model="temp.whitelistDirectory" placeholder="请选择项目白名单路径">
+              <a-select-option v-for="access in accessList" :key="access">
+                <a-tooltip :title="access">{{ access }}</a-tooltip>
+              </a-select-option>
             </a-select>
-            <a-input style="width: 50%" v-model="temp.lib" placeholder="项目存储的文件夹" @blur.native="checkLibIndexExist" />
-            <span class="lib-exist" v-show="temp.libExist">{{ temp.libExistMsg }}</span>
+            <a-input style="width: 50%" v-model="temp.lib" placeholder="项目存储的文件夹" />
           </a-input-group>
+          <template #extra>
+            <!-- <span class="lib-exist" v-show="temp.libExist">{{ temp.libExistMsg }}</span> -->
+          </template>
         </a-form-model-item>
         <!-- <a-form-model-item prop="lib">
           <template slot="label">
@@ -261,40 +312,12 @@
               <a-icon type="question-circle" theme="filled" />
             </a-tooltip>
           </template>
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            v-model="temp.logPath"
-            placeholder="请选择项目白名单路径"
-          >
+          <a-select v-model="temp.logPath" placeholder="请选择项目白名单路径">
             <a-select-option key="" value="">默认是在项目文件夹父级</a-select-option>
             <a-select-option v-for="access in accessList" :key="access">{{ access }}</a-select-option>
           </a-select>
         </a-form-model-item>
 
-        <a-form-model-item prop="jdkId" v-show="javaModes.includes(temp.runMode)" class="jpom-node-project-jdk">
-          <template slot="label">
-            JDK
-            <a-tooltip v-show="temp.type !== 'edit'">
-              <template slot="title"> JDK 需要在侧边栏菜单里手动添加，并非直接读取节点服务器里面的 JDK。 </template>
-              <a-icon type="question-circle" theme="filled" />
-            </a-tooltip>
-          </template>
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            v-model="temp.jdkId"
-            placeholder="请选择 JDK"
-          >
-            <a-select-option v-for="jdk in jdkList" :key="jdk.id">{{ jdk.name }}</a-select-option>
-          </a-select>
-        </a-form-model-item>
         <a-form-model-item label="Main Class" prop="mainClass" v-show="javaModes.includes(temp.runMode) && temp.runMode !== 'Jar'">
           <a-input v-model="temp.mainClass" placeholder="程序运行的 main 类(jar 模式运行可以不填)" />
         </a-form-model-item>
@@ -367,8 +390,8 @@
               <template slot="title">
                 <ul>
                   <li>项目启动,停止,重启都将请求对应的地址</li>
-                  <li>传人参数有：projectId、projectName、type、copyId、result</li>
-                  <li>type 的值有：stop、beforeStop、start、beforeRestart</li>
+                  <li>传入参数有：projectId、projectName、type、copyId、result</li>
+                  <li>type 的值有：stop、beforeStop、start、beforeRestart、fileChange</li>
                 </ul>
               </template>
               <a-icon type="question-circle" theme="filled" />
@@ -385,7 +408,7 @@
       </a-form-model>
     </a-modal>
     <!-- 项目文件组件 -->
-    <a-drawer :title="drawerTitle" placement="right" width="85vw" :visible="drawerFileVisible" @close="onFileClose">
+    <a-drawer destroyOnClose :title="drawerTitle" placement="right" width="85vw" :visible="drawerFileVisible" @close="onFileClose">
       <file
         v-if="drawerFileVisible"
         :nodeId="node.id"
@@ -397,23 +420,20 @@
       />
     </a-drawer>
     <!-- 项目控制台组件 -->
-    <a-drawer :title="drawerTitle" placement="right" width="85vw" :visible="drawerConsoleVisible" @close="onConsoleClose">
+    <a-drawer destroyOnClose :title="drawerTitle" placement="right" width="85vw" :visible="drawerConsoleVisible" @close="onConsoleClose">
       <console v-if="drawerConsoleVisible" :nodeId="node.id" :id="temp.id" :projectId="temp.projectId" :replica="replicaTemp" :copyId="replicaTemp ? replicaTemp.id : ''" @goFile="goFile" />
     </a-drawer>
-    <!-- 项目阅读文件组件 -->
-    <a-drawer :title="drawerTitle" placement="right" width="85vw" :visible="drawerReadFileVisible" @close="onReadFileClose">
+    <!-- 项目跟踪文件组件 -->
+    <a-drawer destroyOnClose :title="drawerTitle" placement="right" width="85vw" :visible="drawerReadFileVisible" @close="onReadFileClose">
       <file-read v-if="drawerReadFileVisible" :nodeId="node.id" :readFilePath="temp.readFilePath" :id="temp.id" :projectId="temp.projectId" @goFile="goFile" />
     </a-drawer>
-    <!-- 项目监控组件 -->
-    <a-drawer :title="drawerTitle" placement="right" width="85vw" :visible="drawerMonitorVisible" @close="onMonitorClose">
-      <monitor v-if="drawerMonitorVisible" :node="node" :project="temp" />
-    </a-drawer>
+
     <!-- 项目副本集组件 -->
     <!-- <a-drawer :title="drawerTitle" placement="right" width="85vw" :visible="drawerReplicaVisible" @close="onReplicaClose">
       <replica v-if="drawerReplicaVisible" :node="node" :project="temp" />
     </a-drawer> -->
     <!-- 批量操作状态 -->
-    <a-modal v-model="batchVisible" :title="batchTitle" :footer="null" @cancel="batchClose">
+    <a-modal destroyOnClose v-model="batchVisible" :title="batchTitle" :footer="null" @cancel="batchClose">
       <a-list bordered :data-source="selectedRows">
         <a-list-item slot="renderItem" slot-scope="item">
           <a-list-item-meta :description="item.email">
@@ -423,34 +443,42 @@
         </a-list-item>
       </a-list>
     </a-modal>
+    <!-- 日志备份 -->
+    <a-modal destroyOnClose v-model="lobbackVisible" title="日志备份列表" width="850px" :footer="null" :maskClosable="false">
+      <ProjectLog v-if="lobbackVisible" :nodeId="node.id" :copyId="temp.copyItem && temp.copyItem.id" :projectId="temp.projectId"></ProjectLog>
+    </a-modal>
   </div>
 </template>
 <script>
 import File from "./project-file";
 import Console from "./project-console";
 import FileRead from "./project-file-read";
-import Monitor from "./project-monitor";
+import CustomSelect from "@/components/customSelect";
 // import Replica from "./project-replica";
-import {parseTime} from "@/utils/time";
+import ProjectLog from "./project-log.vue";
 import codeEditor from "@/components/codeEditor";
-import {CHANGE_PAGE, COMPUTED_PAGINATION, PAGE_DEFAULT_LIST_QUERY, PROJECT_DSL_DEFATUL} from "@/utils/const";
+import { CHANGE_PAGE, COMPUTED_PAGINATION, PAGE_DEFAULT_LIST_QUERY, PROJECT_DSL_DEFATUL, randomStr, parseTime } from "@/utils/const";
 
 import {
   deleteProject,
   editProject,
-  getJdkList,
   getProjectAccessList,
   getProjectData,
   getProjectList,
   getRuningProjectCopyInfo,
   getRuningProjectInfo,
   javaModes,
-  nodeJudgeLibExist,
+  // nodeJudgeLibExist,
   noFileModes,
   restartProject,
   runModeList,
   startProject,
   stopProject,
+  getProjectGroupAll,
+  releaseOutgiving,
+  importTemplate,
+  exportData,
+  importData,
 } from "@/api/node-project";
 
 export default {
@@ -462,17 +490,18 @@ export default {
   components: {
     File,
     Console,
-    Monitor,
+    CustomSelect,
     // Replica,
     codeEditor,
     FileRead,
+    ProjectLog,
   },
   data() {
     return {
       loading: false,
       listQuery: Object.assign({}, PAGE_DEFAULT_LIST_QUERY),
       accessList: [],
-      jdkList: [],
+      groupList: [],
       runModeList: runModeList,
       javaModes: javaModes,
       noFileModes: noFileModes,
@@ -484,7 +513,7 @@ export default {
       drawerTitle: "",
       drawerFileVisible: false,
       drawerConsoleVisible: false,
-      drawerMonitorVisible: false,
+
       drawerReplicaVisible: false,
       drawerReadFileVisible: false,
       // addGroupvisible: false,
@@ -494,32 +523,15 @@ export default {
       checkRecord: "",
       batchVisible: false,
       batchTitle: "",
-      columns: [
-        { title: "", dataIndex: "javaCopyItemList", align: "center", width: "40px", scopedSlots: { customRender: "copyIcon" } },
-        { title: "项目名称", dataIndex: "name", sorter: true, ellipsis: true, scopedSlots: { customRender: "name" } },
-        { title: "运行方式", dataIndex: "runMode", sorter: true, width: 90, ellipsis: true, align: "center", scopedSlots: { customRender: "runMode" } },
-        { title: "修改时间", sorter: true, dataIndex: "modifyTimeMillis", width: 170, ellipsis: true, scopedSlots: { customRender: "time" } },
 
-        {
-          title: "最后操作人",
-          dataIndex: "modifyUser",
-          width: 100,
-          ellipsis: true,
-          sorter: true,
-          scopedSlots: { customRender: "modifyUser" },
-        },
-        { title: "运行状态", dataIndex: "status", width: 80, ellipsis: true, align: "center", scopedSlots: { customRender: "status" } },
-        { title: "端口/PID", dataIndex: "port", width: 100, ellipsis: true, scopedSlots: { customRender: "port" } },
-        { title: "操作", dataIndex: "operation", scopedSlots: { customRender: "operation" }, align: "center", width: 180 },
-      ],
       copyColumns: [
         { title: "编号", dataIndex: "id", width: "80px", ellipsis: true, scopedSlots: { customRender: "id" } },
         { title: "名称", dataIndex: "name", width: 150, ellipsis: true, scopedSlots: { customRender: "name" } },
         { title: "状态", dataIndex: "status", width: 100, ellipsis: true, scopedSlots: { customRender: "status" } },
         { title: "进程 ID", dataIndex: "pid", width: 100, ellipsis: true, scopedSlots: { customRender: "pid" } },
         { title: "端口号", dataIndex: "port", width: 100, ellipsis: true, scopedSlots: { customRender: "port" } },
-        { title: "最后修改时间", dataIndex: "modifyTime", width: 180, ellipsis: true, scopedSlots: { customRender: "modifyTime" } },
-        { title: "操作", dataIndex: "operation", scopedSlots: { customRender: "operation" }, width: "120px" },
+        { title: "最后修改时间", dataIndex: "modifyTime", width: "180px", ellipsis: true, scopedSlots: { customRender: "modifyTime" } },
+        { title: "操作", dataIndex: "operation", scopedSlots: { customRender: "operation" }, width: "150px" },
       ],
       rules: {
         id: [{ required: true, message: "请输入项目ID", trigger: "blur" }],
@@ -529,9 +541,49 @@ export default {
         lib: [{ required: true, message: "请输入项目文件夹", trigger: "blur" }],
       },
       expandedRowKeys: [],
+      lobbackVisible: false,
+      showJavaCopyItemList: false,
     };
   },
   computed: {
+    columns() {
+      const columns = [
+        { title: "项目名称", dataIndex: "name", width: 150, sorter: true, ellipsis: true, scopedSlots: { customRender: "name" } },
+        { title: "项目分组", dataIndex: "group", sorter: true, width: "100px", ellipsis: true, scopedSlots: { customRender: "group" } },
+        {
+          title: "项目路径",
+          dataIndex: "path",
+          ellipsis: true,
+          scopedSlots: { customRender: "path" },
+          width: 150,
+        },
+        { title: "运行方式", dataIndex: "runMode", sorter: true, width: "90px", ellipsis: true, align: "center", scopedSlots: { customRender: "runMode" } },
+
+        // {
+        //   title: "最后操作人",
+        //   dataIndex: "modifyUser",
+        //   width: 100,
+        //   ellipsis: true,
+        //   sorter: true,
+        //   scopedSlots: { customRender: "modifyUser" },
+        // },
+        { title: "运行状态", dataIndex: "status", width: 80, ellipsis: true, align: "center", scopedSlots: { customRender: "status" } },
+        { title: "端口/PID", dataIndex: "port", width: 100, ellipsis: true, scopedSlots: { customRender: "port" } },
+        {
+          title: "创建时间",
+          dataIndex: "createTimeMillis",
+          sorter: true,
+          ellipsis: true,
+          customRender: (text) => parseTime(text),
+          width: "170px",
+        },
+        { title: "修改时间", sorter: true, dataIndex: "modifyTimeMillis", width: "170px", ellipsis: true, customRender: (text) => parseTime(text) },
+      ];
+      this.showJavaCopyItemList && columns.unshift({ title: "", dataIndex: "javaCopyItemList", align: "center", width: "40px", scopedSlots: { customRender: "copyIcon" } });
+      !(this.expandedRowKeys && this.expandedRowKeys.length) &&
+        columns.push({ title: "操作", dataIndex: "operation", scopedSlots: { customRender: "operation" }, fixed: "right", align: "center", width: "180px" });
+      return columns;
+    },
     filePath() {
       return (this.temp.whitelistDirectory || "") + (this.temp.lib || "");
     },
@@ -554,6 +606,8 @@ export default {
   },
   methods: {
     parseTime,
+    randomStr,
+    CHANGE_PAGE,
     // 页面引导
     introGuide() {
       this.$store.dispatch("tryOpenGuide", {
@@ -564,7 +618,7 @@ export default {
             {
               title: "导航助手",
               element: document.querySelector(".jpom-node-project-whitelist"),
-              intro: "这里是选择节点设置的白名单目录，白名单的设置在侧边栏菜单<b>系统管理</b>里面。",
+              intro: "这里是选择节点设置的白名单目录，白名单的设置在侧边栏菜单<b>插件端配置</b>里面。",
             },
           ],
         },
@@ -578,11 +632,10 @@ export default {
         }
       });
     },
-    // 加载 JDK 列表
-    loadJdkList() {
-      getJdkList(this.node.id).then((res) => {
-        if (res.code === 200) {
-          this.jdkList = res.data;
+    loadGroupList() {
+      getProjectGroupAll().then((res) => {
+        if (res.data) {
+          this.groupList = res.data;
         }
       });
     },
@@ -614,6 +667,9 @@ export default {
             }
             return { ...item, javaCopyItemList: javaCopyItemList };
           });
+          this.showJavaCopyItemList = !!this.list.find((item) => {
+            return !!item.javaCopyItemList;
+          });
           // // 项目ID 字段更新
           // this.list = this.list.map((element) => {
           //   //element.dataId = element.id;
@@ -630,22 +686,34 @@ export default {
               nodeId: this.node.id,
               ids: JSON.stringify(ids),
             };
-            getRuningProjectInfo(tempParams).then((res2) => {
+            getRuningProjectInfo(tempParams, "noTip").then((res2) => {
               if (res2.code === 200) {
                 this.list = this.list.map((element) => {
                   if (res2.data[element.projectId]) {
                     element.port = res2.data[element.projectId].port;
                     element.pid = res2.data[element.projectId].pid;
-                    element.status = true;
+                    element.pids = res2.data[element.projectId].pids;
+                    element.status = element.pid > 0;
+                    element.error = res2.data[element.projectId].error;
                   }
                   return element;
                 });
                 // this.list.forEach((element) => {});
+              } else {
+                // error
+                this.list = this.list.map((element) => {
+                  element.port = 0;
+                  element.pid = 0;
+                  element.status = false;
+                  element.error = res2.msg;
+                  return element;
+                });
               }
             });
             //
             this.expandedRowKeys = [];
           }
+          this.loadGroupList();
         }
         this.loading = false;
       });
@@ -658,13 +726,24 @@ export default {
         javaCopyItemList: [],
       };
       this.loadAccesList();
-      this.loadJdkList();
+
       this.editProjectVisible = true;
       this.$nextTick(() => {
         setTimeout(() => {
           this.introGuide();
         }, 500);
       });
+    },
+    // 复制
+    copyItem(record) {
+      const temp = Object.assign({}, record);
+      delete temp.id;
+      delete temp.createTimeMillis;
+      delete temp.outGivingProject;
+      this.temp = { ...temp, name: temp.name + "副本", id: temp.projectId + "_copy", javaCopyItemList: [], lib: temp.lib + "_copy" };
+
+      this.loadAccesList();
+      this.editProjectVisible = true;
     },
     // 编辑
     handleEdit(record) {
@@ -673,7 +752,7 @@ export default {
         nodeId: this.node.id,
       };
       this.loadAccesList();
-      this.loadJdkList();
+
       getProjectData(params).then((res) => {
         if (res.code === 200) {
           this.temp = {
@@ -692,13 +771,7 @@ export default {
     },
     // 添加副本
     handleAddReplica() {
-      const $chars = "ABCDEFGHJKMNPQRSTWXYZ0123456789";
-      /****默认去掉了容易混淆的字符oOLl,9gq,Vv,Uu,I1****/
-      const maxPos = $chars.length;
-      let repliccaId = "";
-      for (let i = 0; i < 2; i++) {
-        repliccaId += $chars.charAt(Math.floor(Math.random() * maxPos));
-      }
+      let repliccaId = randomStr();
       this.temp.javaCopyItemList.push({
         id: repliccaId,
         jvm: "",
@@ -782,23 +855,14 @@ export default {
       this.drawerTitle = `控制台(${this.temp.name})-${copyItem.id}`;
       this.drawerConsoleVisible = true;
       this.replicaTemp = copyItem;
-      console.log(record, copyItem);
+      // console.log(record, copyItem);
     },
     // 关闭控制台
     onConsoleClose() {
       this.drawerConsoleVisible = false;
       this.loadData();
     },
-    // 监控
-    handleMonitor(record) {
-      this.temp = Object.assign({}, record);
-      this.drawerTitle = `监控(${this.temp.name})`;
-      this.drawerMonitorVisible = true;
-    },
-    // 关闭监控
-    onMonitorClose() {
-      this.drawerMonitorVisible = false;
-    },
+
     // // 副本集
     // handleReplica(record) {
     //   this.temp = Object.assign({}, record);
@@ -810,10 +874,12 @@ export default {
     //   this.drawerReplicaVisible = false;
     // },
     // 删除
-    handleDelete(record) {
+    handleDelete(record, thorough) {
       this.$confirm({
         title: "系统提示",
-        content: "真的要删除项目么？删除项目不会删除项目相关文件奥,建议先清理项目相关文件再删除项目",
+        content: thorough
+          ? "真的要彻底删除项目么？彻底项目会自动删除项目相关文件奥(包含项目日志，日志备份，项目文件)"
+          : "真的要删除项目么？删除项目不会删除项目相关文件奥,建议先清理项目相关文件再删除项目",
         okText: "确认",
         cancelText: "取消",
         onOk: () => {
@@ -821,6 +887,7 @@ export default {
           const params = {
             nodeId: this.node.id,
             id: record.projectId,
+            thorough: thorough,
           };
           deleteProject(params).then((res) => {
             if (res.code === 200) {
@@ -834,42 +901,43 @@ export default {
       });
     },
 
-    //检查节点是否存在
-    checkLibIndexExist() {
-      // 检查是否输入完整
-      if (this.temp.lib && this.temp.lib.length !== 0 && this.temp.whitelistDirectory && this.temp.whitelistDirectory.length !== 0) {
-        const params = {
-          nodeId: this.node.id,
-          id: this.temp.id,
-          newLib: this.temp.whitelistDirectory + this.temp.lib,
-        };
-        nodeJudgeLibExist(params).then((res) => {
-          if (res.code === 401) {
-            this.temp.libExist = true;
-            this.temp.libExistMsg = res.msg;
-            this.temp = { ...this.temp };
-          }
-          if (res.code !== 200) {
-            this.$notification.warning({
-              message: res.msg,
-              description: "提示",
-            });
-          }
-        });
-      }
-    },
+    // //检查节点是否存在
+    // checkLibIndexExist() {
+    //   // 检查是否输入完整
+    //   if (this.temp.lib && this.temp.lib.length !== 0 && this.temp.whitelistDirectory && this.temp.whitelistDirectory.length !== 0) {
+    //     const params = {
+    //       nodeId: this.node.id,
+    //       id: this.temp.id,
+    //       newLib: this.temp.whitelistDirectory + this.temp.lib,
+    //     };
+    //     nodeJudgeLibExist(params).then((res) => {
+    //       // if (res.code === 401) {
+    //       //   this.temp = { ...this.temp, libExist: true, libExistMsg: res.msg };
+    //       // }
+    //       if (res.code !== 200) {
+    //         this.$notification.warning({
+    //           message: "提示",
+    //           description: res.msg,
+    //         });
+    //         this.temp = { ...this.temp, libExist: true, libExistMsg: res.msg };
+    //       } else {
+    //         this.temp = { ...this.temp, libExist: false, libExistMsg: "" };
+    //       }
+    //     });
+    //   }
+    // },
     // handleReadFile() {
 
     // },
     onReadFileClose() {
       this.drawerReadFileVisible = false;
     },
-    // 阅读文件
+    // 跟踪文件
     goReadFile(path, filename) {
       this.onFileClose();
       this.drawerReadFileVisible = true;
       this.temp.readFilePath = (path + "/" + filename).replace(new RegExp("//", "gm"), "/");
-      this.drawerTitle = `阅读文件(${filename})`;
+      this.drawerTitle = `跟踪文件(${filename})`;
     },
     //前往控制台
     goConsole() {
@@ -1037,11 +1105,7 @@ export default {
         this.batchStopInfo(count);
       }
     },
-    // 分页、排序、筛选变化时触发
-    changePage(pagination, filters, sorter) {
-      this.listQuery = CHANGE_PAGE(this.listQuery, { pagination, sorter });
-      this.loadData();
-    },
+
     // 折叠事件
     handleExpand(item, status) {
       //javaCopyItemList
@@ -1071,7 +1135,15 @@ export default {
                   // element.port = res.data[element.id].port;
                   // element.pid = res.data[element.id].pid;
                   // element.status = true;
-                  return { ...copyItem, status: true, pid: res.data[copyItem.id].pid, port: res.data[copyItem.id].port };
+
+                  return {
+                    ...copyItem,
+                    status: res.data[copyItem.id].pid > 0,
+                    pid: res.data[copyItem.id].pid,
+                    pids: res.data[copyItem.id].pids,
+                    port: res.data[copyItem.id].port,
+                    error: res.data[copyItem.id].error,
+                  };
                 }
                 return copyItem;
               });
@@ -1086,10 +1158,10 @@ export default {
       });
     },
     // 删除
-    handleDeleteCopy(project, record) {
+    handleDeleteCopy(project, record, thorough) {
       this.$confirm({
         title: "系统提示",
-        content: "真的要删除副本项目么？",
+        content: thorough ? "真的要彻底删除项目副本么?彻底删除项目会自动删除副本相关文件奥(包含项目日志，日志备份)" : "真的要删除项目副本么？",
         okText: "确认",
         cancelText: "取消",
         onOk: () => {
@@ -1098,6 +1170,7 @@ export default {
             nodeId: this.node.id,
             id: project.projectId,
             copyId: record.id,
+            thorough: thorough,
           };
           deleteProject(params).then((res) => {
             if (res.code === 200) {
@@ -1120,6 +1193,71 @@ export default {
         },
       });
     },
+    // 释放分发
+    handleReleaseOutgiving(project) {
+      const html =
+        "<b style='font-size: 20px;'>确定要释放当前项目的分发功能吗？</b>" +
+        "<ul style='font-size: 20px;color:red;font-weight: bold;'>" +
+        "<li>请慎重操作，否则会产生冗余数据。</b></li>" +
+        "<li>一般用于误操作后将本删除转为普通项目再删除项目</li>" +
+        "<li>如果关联的分发还存在再重新编辑对应分发后当前项目会再次切换为分发项目！！！</li>" +
+        " </ul>";
+
+      const h = this.$createElement;
+      this.$confirm({
+        title: "危险操作！！！",
+        content: h("div", null, [h("p", { domProps: { innerHTML: html } }, null)]),
+        okButtonProps: { props: { type: "danger", size: "small" } },
+        cancelButtonProps: { props: { type: "primary" } },
+        okText: "确认",
+        cancelText: "取消",
+        onOk: () => {
+          const params = {
+            nodeId: this.node.id,
+            id: project.projectId,
+          };
+          releaseOutgiving(params).then((res) => {
+            if (res.code === 200) {
+              this.$notification.success({
+                message: res.msg,
+              });
+
+              this.loadData();
+            }
+          });
+        },
+      });
+    },
+    // 下载导入模板
+    handlerImportTemplate() {
+      window.open(
+        importTemplate({
+          nodeId: this.node.id,
+        }),
+        "_blank"
+      );
+    },
+    handlerExportData() {
+      window.open(exportData({ ...this.listQuery }), "_blank");
+    },
+    beforeUpload(file) {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("nodeId", this.node.id);
+      importData(formData).then((res) => {
+        if (res.code === 200) {
+          this.$notification.success({
+            message: res.msg,
+          });
+          this.loadData();
+        }
+      });
+    },
+    // 日志备份列表
+    handleLogBack(record, copyItem) {
+      this.temp = Object.assign({}, record, { copyItem: copyItem });
+      this.lobbackVisible = true;
+    },
   },
 };
 </script>
@@ -1134,7 +1272,7 @@ export default {
   top: 74px;
 } */
 
-.lib-exist {
+/* .lib-exist {
   color: #faad14;
-}
+} */
 </style>

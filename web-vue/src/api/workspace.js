@@ -26,6 +26,19 @@ export function getWorkSpaceList(params) {
 }
 
 /*
+ * 工作空间分组列表
+ * @param {*}
+ * } params
+ */
+export function getWorkSpaceGroupList(params) {
+  return axios({
+    url: "/system/workspace/list-group-all",
+    method: "get",
+    params: params,
+  });
+}
+
+/*
  * 工作空间列表（查询所有)
  * @param {*}
  * } params
@@ -86,5 +99,27 @@ export function deleteWorkspaceEnv(params) {
     url: "/system/workspace_env/delete",
     method: "get",
     params: params,
+  });
+}
+
+/**
+ * 加载 菜单配置信息
+ */
+export function getMenusConfig(data) {
+  return axios({
+    url: "/system/workspace/get_menus_config",
+    method: "post",
+    data,
+  });
+}
+
+/**
+ * 保存菜单配置信息
+ */
+export function saveMenusConfig(data) {
+  return axios({
+    url: "/system/workspace/save_menus_config.json",
+    method: "post",
+    data: data,
   });
 }

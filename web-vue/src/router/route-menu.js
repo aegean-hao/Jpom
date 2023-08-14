@@ -5,7 +5,7 @@
  */
 const routeMenuMap = {
   nodeList: "/node/list",
-  nodeStat: "/node/stat",
+
   dockerList: "/docker/list",
   dockerSwarm: "/docker/swarm",
   sshList: "/ssh",
@@ -29,17 +29,31 @@ const routeMenuMap = {
   buildList: "/build/list-info",
   buildHistory: "/build/history",
   userList: "/user/list",
-  roleList: "/role/list",
+  permission_group: "/user/permission-group",
   user_log: "/operation/log",
+  user_login_log: "/user/login-log",
   monitorConfigEmail: "/system/mail",
   cacheManage: "/system/cache",
   logManage: "/system/log",
   update: "/system/upgrade",
   sysConfig: "/system/config",
+  systemExtConfig: "/system/ext-config",
   projectSearch: "/node/search",
   // 数据库备份
   backup: "/system/backup",
   workspace: "/system/workspace",
+  globalEnv: "/system/global-env",
+  machine_node_info: "/system/assets/machine-list",
+  machine_ssh_info: "/system/assets/ssh-list",
+  machine_docker_info: "/system/assets/docker-list",
+  global_repository: "/system/assets/repository-list",
+  configWorkspaceEnv: "/script/env-list",
+  cronTools: "/tools/cron",
+  myWorkspaceList: "/my-workspace",
+  fileStorage: "/file-manager/file-storage",
+  fileReleaseTask: "/file-manager/release-task",
+  certificate: "/certificate/list",
+  authConfig: "/system/oauth-config",
 };
 
 export default routeMenuMap;

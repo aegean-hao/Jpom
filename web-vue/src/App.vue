@@ -16,6 +16,7 @@
 import zhCN from "ant-design-vue/lib/locale-provider/zh_CN";
 import Vue from "vue";
 import { mapGetters } from "vuex";
+import store from "@/store/index";
 
 export default {
   name: "App",
@@ -54,6 +55,18 @@ export default {
   methods: {
     reload() {
       this.routerActivation = false;
+      // 刷新菜单
+      store
+        .dispatch("restLoadSystemMenus")
+        .then(() => {
+          //
+        })
+        .catch(() => {
+          // 跳转到登录页面
+          this.$router.push({
+            path: "/login",
+          });
+        });
       this.$nextTick(() => {
         this.routerActivation = true;
       });
@@ -65,7 +78,7 @@ export default {
 };
 </script>
 
-<style lang="stylus">
+<style>
 #app {
   font-family: Avenir, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -76,11 +89,12 @@ export default {
 }
 
 .full-content {
-  min-height calc(100vh - 120px);
+  min-height: calc(100vh - 120px);
+  padding-bottom: 20px;
 }
 
 .node-full-content {
-  min-height calc(100vh - 130px) !important;
+  min-height: calc(100vh - 130px) !important;
 }
 
 .globalLoading {
@@ -90,35 +104,13 @@ export default {
   background-color: rgba(0, 0, 0, 0.7);
   position: fixed !important;
   z-index: 99999;
-  top:0;
-  bottom:0;
-  left:0;
-  right:0;
-  display:flex;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
 }
-.ant-spin-text{
+.ant-spin-text {
   text-shadow: 0 0 black !important;
-}
-</style>
-
-<style>
-.hide-scrollbar *::-webkit-scrollbar {
-  width: 0 !important;
-  display: none;
-}
-
-.hide-scrollbar * {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-.hide-scrollbar pre::-webkit-scrollbar {
-  width: 0 !important;
-  display: none;
-}
-
-.hide-scrollbar pre {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
 }
 </style>

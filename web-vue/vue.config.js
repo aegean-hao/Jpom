@@ -1,5 +1,6 @@
 // vue.config.js
-const HOST = "127.0.0.1:2122";
+const HOST = process.env.proxy_host;
+console.log(process.env.proxy_host, HOST);
 const Timestamp = new Date().getTime();
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 module.exports = {
@@ -43,6 +44,8 @@ module.exports = {
       },
     },
   },
+  //打包后是否让每个js文件都生成一个.map文件？true代表生成，false代表不生成。
+  productionSourceMap: false,
   configureWebpack: {
     // name: name,
     // 修改打包后的js文件名称
@@ -68,6 +71,7 @@ module.exports = {
       args[0].title = "Jpom项目管理系统";
       args[0].build = new Date().getTime();
       args[0].env = process.env.NODE_ENV;
+      args[0].buildVersion = process.env.npm_package_version;
       return args;
     });
   },

@@ -6,17 +6,7 @@
         <a-space>
           <a-input v-model="listQuery['%name%']" @pressEnter="loadData" placeholder="请输入备份名称" class="search-input-item" />
           <a-input v-model="listQuery['%version%']" @pressEnter="loadData" placeholder="请输入版本" class="search-input-item" />
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            v-model="listQuery.backupType"
-            allowClear
-            placeholder="请选择备份类型"
-            class="search-input-item"
-          >
+          <a-select v-model="listQuery.backupType" allowClear placeholder="请选择备份类型" class="search-input-item">
             <a-select-option v-for="backupType in backupTypeList" :key="backupType.key">{{ backupType.value }}</a-select-option>
           </a-select>
           <a-tooltip title="按住 Ctr 或者 Alt/Option 键点击按钮快速回到第一页">
@@ -26,37 +16,43 @@
           <a-button type="primary" @click="handleSqlUpload">导入备份</a-button>
         </a-space>
       </template>
-      <a-tooltip slot="name" slot-scope="text" placement="topLeft" :title="text">
+      <a-tooltip slot="name" slot-scope="text" :title="text">
         <span>{{ text }}</span>
       </a-tooltip>
-      <template slot="backupType" slot-scope="text" placement="topleft" :title="text">
+      <a-tooltip slot="backupType" slot-scope="text" :title="text">
         <span>{{ backupTypeMap[text] }}</span>
-      </template>
-      <template slot="baleTimeStamp" slot-scope="text">
-        <a-tooltip placement="topLeft" :title="`${parseTime(text)}`"> {{ parseTime(text) }} </a-tooltip>
-      </template>
-      <a-tooltip slot="status" slot-scope="text, reocrd" placement="topLeft" :title="`${backupStatusMap[text]} 点击复制文件路径`">
-        <div
-          v-clipboard:copy="reocrd.filePath"
-          v-clipboard:success="
-            () => {
-              tempVue.prototype.$notification.success({
-                message: '复制成功',
-              });
-            }
-          "
-          v-clipboard:error="
-            () => {
-              tempVue.prototype.$notification.error({
-                message: '复制失败',
-              });
-            }
-          "
-        >
-          {{ backupStatusMap[text] }}
-          <a-icon type="copy" />
-        </div>
       </a-tooltip>
+      <template slot="baleTimeStamp" slot-scope="text">
+        <a-tooltip :title="`${parseTime(text)}`"> {{ parseTime(text) }} </a-tooltip>
+      </template>
+      <template slot="status" slot-scope="text, reocrd">
+        <a-tooltip v-if="reocrd.fileExist" :title="`${backupStatusMap[text]} 点击复制文件路径`">
+          <div
+            v-clipboard:copy="reocrd.filePath"
+            v-clipboard:success="
+              () => {
+                tempVue.prototype.$notification.success({
+                  message: '复制成功',
+                });
+              }
+            "
+            v-clipboard:error="
+              () => {
+                tempVue.prototype.$notification.error({
+                  message: '复制失败',
+                });
+              }
+            "
+          >
+            {{ backupStatusMap[text] }}
+            <a-icon type="copy" />
+          </div>
+        </a-tooltip>
+        <a-tooltip v-else :title="`备份文件不存在:${reocrd.filePath}`">
+          <a-icon type="warning" />
+        </a-tooltip>
+      </template>
+
       <a-tooltip slot="fileSize" slot-scope="text, reocrd" placement="topLeft" :title="renderSizeFormat(text) + ' ' + reocrd.sha1Sum">
         <a-tag color="#108ee9">{{ renderSizeFormat(text) }}</a-tag>
       </a-tooltip>
@@ -68,14 +64,14 @@
       </a-tooltip> -->
       <template slot="operation" slot-scope="text, record">
         <a-space>
-          <a-button size="small" type="primary" @click="handleDownload(record)">下载</a-button>
+          <a-button size="small" type="primary" :disabled="!record.fileExist || record.status !== 1" @click="handleDownload(record)">下载</a-button>
+          <a-button size="small" type="danger" :disabled="!record.fileExist || record.status !== 1" @click="handleRestore(record)">还原</a-button>
           <a-button size="small" type="danger" @click="handleDelete(record)">删除</a-button>
-          <a-button size="small" type="danger" :disabled="record.status !== 1" @click="handleRestore(record)">还原</a-button>
         </a-space>
       </template>
     </a-table>
     <!-- 创建备份信息区 -->
-    <a-modal v-model="createBackupVisible" title="创建备份信息" @ok="handleCreateBackupOk" width="600px" :maskClosable="false">
+    <a-modal destroyOnClose v-model="createBackupVisible" title="创建备份信息" @ok="handleCreateBackupOk" width="600px" :maskClosable="false">
       <a-form-model ref="editBackupForm" :rules="rules" :model="temp" :label-col="{ span: 4 }" :wrapper-col="{ span: 20 }">
         <a-form-model-item label="备份类型" prop="backupType">
           <a-radio-group v-model="temp.backupType" name="backupType">
@@ -89,7 +85,7 @@
       </a-form-model>
     </a-modal>
     <!-- 上传 SQL 备份文件 -->
-    <a-modal v-model="uploadSqlFileVisible" width="300px" title="上传 SQL 文件" :footer="null" :maskClosable="true">
+    <a-modal destroyOnClose v-model="uploadSqlFileVisible" width="300px" title="上传 SQL 文件" :footer="null" :maskClosable="true">
       <a-upload :file-list="uploadFileList" :remove="handleSqlRemove" :before-upload="beforeSqlUpload" accept=".sql">
         <a-button><a-icon type="upload" />选择 SQL 文件</a-button>
       </a-upload>
@@ -110,9 +106,8 @@
   </div>
 </template>
 <script>
-import {backupStatusMap, backupTypeArray, backupTypeMap, createBackup, deleteBackup, downloadBackupFile, getBackupList, getTableNameList, restoreBackup, uploadBackupFile} from "@/api/backup-info";
-import {parseTime, renderSize} from "@/utils/time";
-import {CHANGE_PAGE, COMPUTED_PAGINATION, PAGE_DEFAULT_LIST_QUERY} from "@/utils/const";
+import { backupStatusMap, backupTypeArray, backupTypeMap, createBackup, deleteBackup, downloadBackupFile, getBackupList, getTableNameList, restoreBackup, uploadBackupFile } from "@/api/backup-info";
+import { CHANGE_PAGE, COMPUTED_PAGINATION, PAGE_DEFAULT_LIST_QUERY, parseTime, renderSize } from "@/utils/const";
 import Vue from "vue";
 
 export default {
@@ -176,20 +171,17 @@ export default {
           dataIndex: "createTimeMillis",
           sorter: true,
           customRender: (text) => {
-            if (!text) {
-              return "";
-            }
             return parseTime(text);
           },
-          width: 170,
+          width: "170px",
         },
         {
           title: "操作",
           dataIndex: "operation",
-          width: 180,
+          width: "180px",
           scopedSlots: { customRender: "operation" },
           align: "center",
-          // fixed: "right",
+          fixed: "right",
         },
       ],
       rules: {
@@ -199,6 +191,7 @@ export default {
         releasePath: [{ required: true, message: "Please input release path", trigger: "blur" }],
       },
       tempVue: Vue,
+      timer: null,
     };
   },
   computed: {
@@ -214,6 +207,9 @@ export default {
   created() {
     // console.log(backupTypeMap);
     this.loadData();
+  },
+  beforeDestroy() {
+    this.timer && clearTimeout(this.timer);
   },
   methods: {
     // 格式化文件大小
@@ -286,7 +282,7 @@ export default {
     },
     // 下载
     handleDownload(record) {
-      window.open(downloadBackupFile(record.id), "_self");
+      window.open(downloadBackupFile(record.id), "_blank");
     },
     // 删除
     handleDelete(record) {
@@ -314,7 +310,7 @@ export default {
         "真的要还原备份信息么？<ul style='color:red;'>" +
         "<li>建议还原和当前版本一致的文件或者临近版本的文件</li>" +
         "<li>如果版本相差大需要重新初始化数据来保证和当前程序里面字段一致</li>" +
-        "<li>重置初始化在启动时候传人参数 <b> --rest:load_init_db </b> </li>" +
+        "<li>重置初始化在启动时候传入参数 <b> --rest:load_init_db </b> </li>" +
         " </ul>还原过程中不能操作哦...";
       const h = this.$createElement;
       this.$confirm({
@@ -340,9 +336,13 @@ export default {
     handleSqlUpload() {
       this.successSize = 0;
       this.uploadSqlFileVisible = true;
+      clearInterval(this.timer);
+      this.percentage = 0;
+      this.uploadFileList = [];
+      this.uploading = false;
     },
     handleSqlRemove() {
-      this.uploadFileList = [];
+      this.handleSqlUpload();
     },
     beforeSqlUpload(file) {
       this.uploadFileList = [file];
@@ -355,7 +355,7 @@ export default {
       });
       // 设置上传状态
       this.uploading = true;
-      const timer = setInterval(() => {
+      this.timer = setInterval(() => {
         this.percentage = this.percentage > 99 ? 99 : this.percentage + 1;
       }, 1000);
 
@@ -373,11 +373,9 @@ export default {
           this.successSize++;
           this.percentage = 100;
           setTimeout(() => {
-            this.percentage = 0;
-            this.uploading = false;
-            clearInterval(timer);
-            this.uploadFileList = [];
+            this.handleSqlRemove();
             this.loadData();
+            this.uploadSqlFileVisible = false;
           }, 1000);
         }
       });

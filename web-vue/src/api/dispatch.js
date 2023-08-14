@@ -1,11 +1,14 @@
 import axios from "./config";
 
 // 分发列表
-export function getDishPatchList(data) {
+export function getDishPatchList(data, loading) {
   return axios({
     url: "/outgiving/dispatch-list",
     method: "post",
     data: data,
+    headers: {
+      loading: loading === false ? "no" : "",
+    },
   });
 }
 
@@ -18,11 +21,15 @@ export function getDishPatchListAll() {
 }
 
 // 分发节点项目状态
-export function getDispatchProject(id) {
+export function getDispatchProject(id, loading) {
   return axios({
     url: "/outgiving/getItemData.json",
     method: "post",
     data: { id },
+    timeout: 0,
+    headers: {
+      loading: loading === false ? "no" : "",
+    },
   });
 }
 
@@ -92,14 +99,25 @@ export function editDispatchProject(params) {
  */
 export function uploadDispatchFile(formData) {
   return axios({
-    url: "/outgiving/upload",
+    url: "/outgiving/upload-sharding",
     headers: {
       "Content-Type": "multipart/form-data;charset=UTF-8",
+      loading: "no",
     },
     method: "post",
     // 0 表示无超时时间
     timeout: 0,
     data: formData,
+  });
+}
+
+export function uploadDispatchFileMerge(params) {
+  return axios({
+    url: "/outgiving/upload-sharding-merge",
+    method: "post",
+    data: params,
+    // 0 表示无超时时间
+    timeout: 0,
   });
 }
 
@@ -137,11 +155,11 @@ export function releaseDelDisPatch(id) {
  * 删除分发
  * @param {*} id 分发 ID
  */
-export function delDisPatchProject(id) {
+export function delDisPatchProject(data) {
   return axios({
     url: "/outgiving/delete_project",
     method: "post",
-    data: { id },
+    data: data,
   });
 }
 
@@ -194,6 +212,37 @@ export function editDispatchWhiteList(params) {
   });
 }
 
+/**
+ * 取消分发
+ * @param {*} id 分发 ID
+ */
+export function cancelOutgiving(data) {
+  return axios({
+    url: "/outgiving/cancel",
+    method: "post",
+    data,
+  });
+}
+
+export function removeProject(params) {
+  return axios({
+    url: "/outgiving/remove-project",
+    method: "get",
+    params: params,
+  });
+}
+
+export function saveDispatchProjectConfig(data) {
+  return axios({
+    url: "/outgiving/config-project",
+    method: "post",
+    data,
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+}
+
 export const afterOptList = [
   { title: "不做任何操作", value: 0 },
   { title: "并发执行", value: 1 },
@@ -211,11 +260,15 @@ export const dispatchStatusMap = {
   1: "分发中",
   2: "分发成功",
   3: "分发失败",
-  4: "取消分发",
+  4: "系统取消分发",
+  5: "准备分发",
+  6: "手动取消分发",
 };
 
 export const statusMap = {
   0: "未分发",
   1: "分发中",
   2: "分发结束",
+  3: "取消分发",
+  4: "分发失败",
 };

@@ -6,11 +6,7 @@
           |
 
           <a-input-group compact style="width: 200px">
-            <a-select  :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            " v-model="logScroll">
+            <a-select   v-model="logScroll">
               <a-select-option value="true"> 自动滚动 </a-select-option>
               <a-select-option value="false"> 关闭滚动 </a-select-option>
             </a-select>
@@ -24,14 +20,14 @@
     </div> -->
     <!-- console -->
     <log-view :ref="`logView`" height="calc(100vh - 140px)">
-      <template slot="before"> <a-button type="primary" @click="goFile">文件管理</a-button></template>
+      <template slot="before"> <a-button type="primary" size="small" @click="goFile">文件管理</a-button></template>
     </log-view>
   </div>
 </template>
 <script>
 // import { getProjectData, getProjectLogSize, downloadProjectLogFile, getLogBackList, downloadProjectLogBackFile, deleteProjectLogBackFile } from "@/api/node-project";
-import {mapGetters} from "vuex";
-import {getWebSocketUrl} from "@/utils/const";
+import { mapGetters } from "vuex";
+import { getWebSocketUrl } from "@/utils/const";
 import LogView from "@/components/logView";
 
 export default {
@@ -63,22 +59,28 @@ export default {
     };
   },
   computed: {
-    ...mapGetters(["getLongTermToken"]),
+    ...mapGetters(["getLongTermToken", "getWorkspaceId"]),
     socketUrl() {
-      return getWebSocketUrl("/socket/console", `userId=${this.getLongTermToken}&id=${this.id}&nodeId=${this.nodeId}&type=console&copyId=`);
+      return getWebSocketUrl("/socket/console", `userId=${this.getLongTermToken}&id=${this.id}&nodeId=${this.nodeId}&type=console&copyId=&workspaceId=${this.getWorkspaceId}`);
     },
   },
   mounted() {
     // this.loadProject();
     this.initWebSocket();
+    // 监听窗口关闭事件，当窗口关闭时，主动去关闭websocket连接，防止连接还没断开就关闭窗口，server端会抛异常。
+    window.onbeforeunload = () => {
+      this.close();
+    };
   },
   beforeDestroy() {
-    if (this.socket) {
-      this.socket.close();
-    }
-    clearInterval(this.heart);
+    this.close();
   },
   methods: {
+    close() {
+      this.socket?.close();
+
+      clearInterval(this.heart);
+    },
     // 初始化
     initWebSocket() {
       //this.logContext = "";
@@ -99,13 +101,11 @@ export default {
       this.socket.onclose = (err) => {
         //当客户端收到服务端发送的关闭连接请求时，触发onclose事件
         console.error(err);
-        this.$notification.info({
-          message: "会话已经关闭",
-        });
+        this.$message.warning("会话已经关闭[tail-file]");
         clearInterval(this.heart);
       };
       this.socket.onmessage = (msg) => {
-        this.$refs.logView.appendLine(msg.data);
+        this.$refs.logView?.appendLine(msg.data);
 
         clearInterval(this.heart);
         // 创建心跳，防止掉线

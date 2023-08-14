@@ -5,24 +5,13 @@
         <a-space>
           <a-input v-model="listQuery['nodeId']" @pressEnter="loadData" placeholder="id" class="search-input-item" />
           <a-input v-model="listQuery['nodeName']" @pressEnter="loadData" placeholder="名称" class="search-input-item" />
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            show-search
-            option-filter-prop="children"
-            v-model="listQuery['nodeRole']"
-            allowClear
-            placeholder="角色"
-            class="search-input-item"
-          >
+          <a-select show-search option-filter-prop="children" v-model="listQuery['nodeRole']" allowClear placeholder="角色" class="search-input-item">
             <a-select-option key="worker">工作节点</a-select-option>
             <a-select-option key="manager">管理节点</a-select-option>
           </a-select>
 
           <a-button type="primary" @click="loadData" :loading="loading">搜索</a-button>
+          <a-statistic-countdown format=" s 秒" title="刷新倒计时" :value="countdownTime" @finish="loadData" />
         </a-space>
       </template>
       <a-tooltip slot="tooltip" slot-scope="text" placement="topLeft" :title="text">
@@ -70,8 +59,7 @@
           {{ text }}
         </a-tag>
       </a-tooltip>
-      <a-tooltip slot="address" slot-scope="text, item" placement="topLeft" :title="text">
-        <a-icon v-if="item.managerStatus && item.managerStatus.leader" type="cloud-server" />
+      <a-tooltip slot="address" slot-scope="text" placement="topLeft" :title="text">
         {{ text }}
       </a-tooltip>
 
@@ -82,7 +70,7 @@
       </a-tooltip>
       <a-tooltip slot="updatedAt" slot-scope="text, item" placement="topLeft" :title="`修改时间：${text} 创建时间：${item.createdAt}`">
         <span>
-          <a-tag>{{ text }}</a-tag>
+          {{ text }}
         </span>
       </a-tooltip>
 
@@ -115,7 +103,7 @@
       </template>
     </a-table>
     <!-- 编辑节点 -->
-    <a-modal v-model="editVisible" title="编辑节点" @ok="handleEditOk" :maskClosable="false">
+    <a-modal destroyOnClose v-model="editVisible" title="编辑节点" @ok="handleEditOk" :maskClosable="false">
       <a-form-model ref="editForm" :rules="rules" :model="temp" :label-col="{ span: 4 }" :wrapper-col="{ span: 18 }">
         <a-form-model-item label="角色" prop="role">
           <a-radio-group name="role" v-model="temp.role" :disabled="temp.leader">
@@ -136,7 +124,8 @@
 </template>
 
 <script>
-import {dockerSwarmNodeLeave, dockerSwarmNodeList, dockerSwarmNodeUpdate} from "@/api/docker-swarm";
+import { dockerSwarmNodeList, dockerSwarmNodeUpdate } from "@/api/docker-swarm";
+import { dockerSwarmNodeLeave } from "@/api/system/assets-docker";
 
 export default {
   components: {},
@@ -147,6 +136,9 @@ export default {
     visible: {
       type: Boolean,
       default: false,
+    },
+    urlPrefix: {
+      type: String,
     },
   },
   data() {
@@ -161,7 +153,7 @@ export default {
         role: [{ required: true, message: "请选择节点角色", trigger: "blur" }],
         availability: [{ required: true, message: "请选择节点状态", trigger: "blur" }],
       },
-      autoUpdateTime: null,
+
       columns: [
         { title: "序号", width: 80, ellipsis: true, align: "center", customRender: (text, record, index) => `${index + 1}` },
         // { title: "节点Id", dataIndex: "id", ellipsis: true, scopedSlots: { customRender: "tooltip" } },
@@ -184,16 +176,15 @@ export default {
 
           ellipsis: true,
           scopedSlots: { customRender: "updatedAt" },
-          width: 170,
+          width: "170px",
         },
-        { title: "操作", dataIndex: "operation", scopedSlots: { customRender: "operation" }, align: "center", width: 120 },
+        { title: "操作", dataIndex: "operation", scopedSlots: { customRender: "operation" }, align: "center", width: "120px" },
       ],
+      countdownTime: Date.now(),
     };
   },
   computed: {},
-  beforeDestroy() {
-    this.autoUpdateTime && clearTimeout(this.autoUpdateTime);
-  },
+  beforeDestroy() {},
   mounted() {
     this.loadData();
   },
@@ -206,15 +197,12 @@ export default {
       this.loading = true;
 
       this.listQuery.id = this.id;
-      dockerSwarmNodeList(this.listQuery).then((res) => {
+      dockerSwarmNodeList(this.urlPrefix, this.listQuery).then((res) => {
         if (res.code === 200) {
           this.list = res.data;
         }
         this.loading = false;
-        clearTimeout(this.autoUpdateTime);
-        this.autoUpdateTime = setTimeout(() => {
-          this.loadData();
-        }, 3000);
+        this.countdownTime = Date.now() + 5 * 1000;
       });
     },
     handleEdit(record) {
@@ -232,7 +220,7 @@ export default {
           return false;
         }
         this.temp.id = this.id;
-        dockerSwarmNodeUpdate(this.temp).then((res) => {
+        dockerSwarmNodeUpdate(this.urlPrefix, this.temp).then((res) => {
           if (res.code === 200) {
             // 成功
             this.$notification.success({
@@ -244,7 +232,7 @@ export default {
         });
       });
     },
-    // 解绑
+    //
     handleLeava(record) {
       this.$confirm({
         title: "系统提示",
@@ -271,3 +259,13 @@ export default {
   },
 };
 </script>
+<style scoped>
+/deep/ .ant-statistic div {
+  display: inline-block;
+}
+
+/deep/ .ant-statistic-content-value,
+/deep/ .ant-statistic-content {
+  font-size: 16px;
+}
+</style>

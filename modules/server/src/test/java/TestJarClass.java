@@ -20,10 +20,10 @@
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-import cn.hutool.Hutool;
 import cn.hutool.core.util.ClassUtil;
+import cn.hutool.core.util.StrUtil;
 import cn.hutool.core.util.URLUtil;
-import io.jpom.common.JpomManifest;
+import org.dromara.jpom.common.JpomManifest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -33,21 +33,21 @@ import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 
 /**
- * Created by jiangzeyin on 2019/4/13.
+ * Created by bwcx_jzy on 2019/4/13.
  */
 public class TestJarClass {
 
 
-	@Test
-	public void test(){
-		JarFile jarFile = URLUtil.getJarFile(Hutool.class.getResource(""));
-		System.out.println(jarFile.getName());
-		URL location = ClassUtil.getLocation(JpomManifest.class);
-		System.out.println(location);
+    @Test
+    public void test() {
+        JarFile jarFile = URLUtil.getJarFile(StrUtil.class.getResource(""));
+        System.out.println(jarFile.getName());
+        URL location = ClassUtil.getLocation(JpomManifest.class);
+        System.out.println(location);
 
-		String location1 = ClassUtil.getLocationPath(JpomManifest.class);
-		System.out.println(location1);
-	}
+        String location1 = ClassUtil.getLocationPath(JpomManifest.class);
+        System.out.println(location1);
+    }
 
 
     public static void main(String[] args) throws IOException {

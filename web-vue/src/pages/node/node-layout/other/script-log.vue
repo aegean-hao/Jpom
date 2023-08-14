@@ -5,19 +5,7 @@
       <template slot="title">
         <a-space>
           <a-input v-model="listQuery['%name%']" placeholder="名称" allowClear class="search-input-item" />
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            show-search
-            option-filter-prop="children"
-            v-model="listQuery.triggerExecType"
-            allowClear
-            placeholder="触发类型"
-            class="search-input-item"
-          >
+          <a-select show-search option-filter-prop="children" v-model="listQuery.triggerExecType" allowClear placeholder="触发类型" class="search-input-item">
             <a-select-option v-for="(val, key) in triggerExecTypeMap" :key="key">{{ val }}</a-select-option>
           </a-select>
           <a-range-picker
@@ -55,6 +43,10 @@
       <template slot="triggerExecTypeMap" slot-scope="text">
         <span>{{ triggerExecTypeMap[text] || "未知" }}</span>
       </template>
+      <template slot="global" slot-scope="text">
+        <a-tag v-if="text === 'GLOBAL'">全局</a-tag>
+        <a-tag v-else>工作空间</a-tag>
+      </template>
       <a-tooltip slot="createTimeMillis" slot-scope="text, record" :title="`${parseTime(record.createTimeMillis)}`">
         <span>{{ parseTime(record.createTimeMillis) }}</span>
       </a-tooltip>
@@ -67,17 +59,16 @@
       </template>
     </a-table>
     <!-- 日志 -->
-    <a-modal :width="'80vw'" v-model="logVisible" title="执行日志" :footer="null" :maskClosable="false">
+    <a-modal destroyOnClose :width="'80vw'" v-model="logVisible" title="执行日志" :footer="null" :maskClosable="false">
       <script-log-view v-if="logVisible" :temp="temp" />
     </a-modal>
   </div>
 </template>
 <script>
-import {getScriptLogList, scriptDel} from "@/api/node-other";
-import {triggerExecTypeMap} from "@/api/node-script";
+import { getScriptLogList, scriptDel, triggerExecTypeMap } from "@/api/node-other";
+// import {triggerExecTypeMap} from "@/api/node-script";
 import ScriptLogView from "@/pages/node/node-layout/other/script-log-view";
-import {CHANGE_PAGE, COMPUTED_PAGINATION, PAGE_DEFAULT_LIST_QUERY} from "@/utils/const";
-import {parseTime} from "@/utils/time";
+import { CHANGE_PAGE, COMPUTED_PAGINATION, PAGE_DEFAULT_LIST_QUERY, parseTime } from "@/utils/const";
 
 export default {
   components: {
@@ -106,11 +97,12 @@ export default {
       temp: {},
       logVisible: false,
       columns: [
-        { title: "名称", dataIndex: "scriptName", ellipsis: true, scopedSlots: { customRender: "scriptName" } },
-        { title: "执行时间", dataIndex: "createTimeMillis", ellipsis: true, scopedSlots: { customRender: "createTimeMillis" } },
+        { title: "名称", dataIndex: "scriptName", ellipsis: true, width: 100, scopedSlots: { customRender: "scriptName" } },
+        { title: "执行时间", dataIndex: "createTimeMillis", ellipsis: true, width: "160px", scopedSlots: { customRender: "createTimeMillis" } },
         { title: "触发类型", dataIndex: "triggerExecType", width: 100, ellipsis: true, scopedSlots: { customRender: "triggerExecTypeMap" } },
-        { title: "执行人", dataIndex: "modifyUser", ellipsis: true, scopedSlots: { customRender: "modifyUser" } },
-        { title: "操作", dataIndex: "operation", align: "center", scopedSlots: { customRender: "operation" }, width: 140 },
+        { title: "执行域", dataIndex: "workspaceId", ellipsis: true, scopedSlots: { customRender: "global" }, width: "90px" },
+        { title: "执行人", dataIndex: "modifyUser", ellipsis: true, width: 100, scopedSlots: { customRender: "modifyUser" } },
+        { title: "操作", dataIndex: "operation", align: "center", scopedSlots: { customRender: "operation" }, fixed: "right", width: "140px" },
       ],
     };
   },
@@ -176,8 +168,4 @@ export default {
   },
 };
 </script>
-<style scoped>
-.filter {
-  margin-bottom: 10px;
-}
-</style>
+<style scoped></style>

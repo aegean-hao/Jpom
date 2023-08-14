@@ -13,11 +13,13 @@
       <div>
         <a-input class="console" v-model="logContext" readOnly type="textarea" style="resize: none" />
       </div> -->
-      <log-view :ref="`logView`" height="calc(100vh - 165px)" searchWidth="260px" :extendBar="false">
+      <log-view :ref="`logView`" height="calc(100vh - 165px)">
         <template slot="before">
-          <a-button type="primary" size="small" @click="loadData">刷新</a-button>
-          <a-button type="danger" size="small" :disabled="!this.temp.path" @click="deleteLog">删除</a-button>
-          <a-button type="primary" size="small" :disabled="!this.temp.path" @click="downloadLog">下载</a-button>
+          <a-space>
+            <a-button type="primary" size="small" @click="loadData">刷新</a-button>
+            <a-button type="danger" size="small" :disabled="!this.temp.path" @click="deleteLog">删除</a-button>
+            <a-button type="primary" size="small" :disabled="!this.temp.path" @click="downloadLog">下载</a-button>
+          </a-space>
         </template>
       </log-view>
     </a-layout-content>
@@ -57,46 +59,30 @@ export default {
         title: "title",
         key: "path",
       },
-      visible: false,
+      // visible: false,
       temp: {},
     };
   },
   computed: {
-    ...mapGetters(["getLongTermToken"]),
+    ...mapGetters(["getLongTermToken", "getWorkspaceId"]),
     socketUrl() {
-      return getWebSocketUrl("/socket/tomcat_log", `userId=${this.getLongTermToken}&tomcatId=${this.tomcatId}&nodeId=${this.node.id}&type=tomcat`);
+      return getWebSocketUrl("/socket/tomcat_log", `userId=${this.getLongTermToken}&tomcatId=${this.tomcatId}&nodeId=${this.node.id}&type=tomcat&workspaceId=${this.getWorkspaceId}`);
     },
   },
   watch: {},
   created() {
     this.loadData();
-    this.$nextTick(() => {
-      setTimeout(() => {
-        this.introGuide();
-      }, 500);
-    });
+    // 监听窗口关闭事件，当窗口关闭时，主动去关闭websocket连接，防止连接还没断开就关闭窗口，server端会抛异常。
+    window.onbeforeunload = () => {
+      this.close();
+    };
+  },
+  beforeDestroy() {
+    this.close();
   },
   methods: {
-    // 页面引导
-    introGuide() {
-      this.$store.dispatch("tryOpenGuide", {
-        key: "node-log",
-        options: {
-          hidePrev: true,
-          steps: [
-            {
-              title: "导航助手",
-              element: document.querySelector(".jpom-node-log-tree"),
-              intro: "这里是 Agent 节点里面的日志文件，点击具体的文件可以在右边的区域查看日志内容。",
-            },
-            {
-              title: "导航助手",
-              element: document.querySelector(".ant-tree-node-content-wrapper"),
-              intro: "您还可以用右键点击，会弹出一个操作选项的窗口（嗯，入口隐藏的比较深，所以有必要提示一下）。",
-            },
-          ],
-        },
-      });
+    close() {
+      this.socket?.close();
     },
     // 加载数据
     loadData() {
@@ -130,6 +116,12 @@ export default {
     },
     // 选择节点
     select(selectedKeys, { node }) {
+      if (this.temp?.path === node.dataRef?.path) {
+        return;
+      }
+      if (!node.dataRef.isLeaf) {
+        return;
+      }
       const data = {
         op: "showlog",
         tomcatId: this.tomcatId,
@@ -137,9 +129,10 @@ export default {
       };
       this.temp = node.dataRef;
       this.$refs.logView.clearLogCache();
-      if (!this.socket || this.socket.readyState !== this.socket.OPEN || this.socket.readyState !== this.socket.CONNECTING) {
-        this.socket = new WebSocket(this.socketUrl);
-      }
+
+      this.socket?.close();
+
+      this.socket = new WebSocket(this.socketUrl);
       // 连接成功后
       this.socket.onopen = () => {
         this.socket.send(JSON.stringify(data));
@@ -156,9 +149,7 @@ export default {
       this.socket.onclose = (err) => {
         //当客户端收到服务端发送的关闭连接请求时，触发onclose事件
         console.error(err);
-        this.$notification.info({
-          message: "会话已经关闭",
-        });
+        this.$message.warning("会话已经关闭[node-system-log] " + node.dataRef.path);
         // clearInterval(this.heart);
       };
     },
@@ -176,17 +167,7 @@ export default {
         path: this.temp.path,
       };
       // 请求接口拿到 blob
-      downloadFile(params).then((blob) => {
-        const url = window.URL.createObjectURL(blob);
-        let link = document.createElement("a");
-        link.style.display = "none";
-        link.href = url;
-        link.setAttribute("download", this.temp.title);
-        document.body.appendChild(link);
-        link.click();
-        // 关闭弹窗
-        this.visible = false;
-      });
+      window.open(downloadFile(params), "_blank");
     },
     // 删除文件
     deleteLog() {

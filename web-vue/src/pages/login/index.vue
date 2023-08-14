@@ -30,8 +30,8 @@
       <br />
       <template v-if="this.action === 'login'">
         <a-form-model ref="loginForm" :label-col="{ span: 0 }" :model="loginForm" :rules="rules" @submit="handleLogin">
-          <a-form-model-item :wrapper-col="{ span: 24 }" prop="userName">
-            <a-input v-model="loginForm.userName" placeholder="用户名" />
+          <a-form-model-item :wrapper-col="{ span: 24 }" prop="loginName">
+            <a-input v-model="loginForm.loginName" placeholder="用户名" />
           </a-form-model-item>
           <a-form-model-item :wrapper-col="{ span: 24 }" prop="userPwd">
             <a-input-password v-model="loginForm.userPwd" placeholder="密码" />
@@ -43,17 +43,37 @@
               </a-col>
               <a-col :offset="2" :span="8">
                 <div class="rand-code">
-                  <img :src="randCode" @click="changeCode" />
+                  <img v-if="randCode" :src="randCode" @click="changeCode" />
+                  <a-icon v-else type="loading" />
                 </div>
               </a-col>
             </a-row>
           </a-form-model-item>
-          <a-button type="primary" html-type="submit" class="btn-login"> 登录 </a-button>
+          <a-form-model-item :wrapper-col="{ span: 24 }">
+            <a-button type="primary" html-type="submit" class="btn-login"> 登录 </a-button>
+          </a-form-model-item>
+          <template v-if="this.enabledOauth2Provides.length">
+            <a-divider>第三方登录</a-divider>
+            <!-- <a-form-model-item :wrapper-col="{ span: 24 }"> </a-form-model-item> -->
+            <a-form-model-item :wrapper-col="{ span: 24 }">
+              <a-space :size="20">
+                <div class="oauth2-item" v-if="this.enabledOauth2Provides.indexOf('gitee') > -1">
+                  <a-tooltip @click="toOauth2Url('gitee')" title="gitee"><img :src="giteeImg" /></a-tooltip>
+                </div>
+                <div class="oauth2-item" v-if="this.enabledOauth2Provides.indexOf('maxkey') > -1">
+                  <a-tooltip @click="toOauth2Url('maxkey')" title="maxkey"><img :src="maxkeyImg" /></a-tooltip>
+                </div>
+                <div class="oauth2-item" v-if="this.enabledOauth2Provides.indexOf('github') > -1">
+                  <a-tooltip @click="toOauth2Url('github')" title="github"><img :src="githubImg" /></a-tooltip>
+                </div>
+              </a-space>
+            </a-form-model-item>
+          </template>
         </a-form-model>
       </template>
       <template v-if="this.action === 'mfa'">
         <a-form-model ref="mfaDataForm" :label-col="{ span: 0 }" :model="mfaData" :rules="rules" @submit="handleMfa">
-          <a-form-model-item label="验证码" :label-col="{ span: 5 }" :wrapper-col="{ span: 19 }" prop="mfaCode">
+          <a-form-model-item label="验证码" :label-col="{ span: 5 }" :wrapper-col="{ span: 19 }" prop="mfaCode" help="需要验证 MFA">
             <a-input v-model="mfaData.mfaCode" placeholder="mfa 验证码" />
           </a-form-model-item>
 
@@ -64,26 +84,26 @@
   </div>
 </template>
 <script>
-import { login, demoInfo, mfaVerify } from "@/api/user";
+import { login, loginConfig, mfaVerify, oauth2Url, oauth2Login, loginRandCode } from "@/api/user/user";
 import { checkSystem } from "@/api/install";
-import sha1 from "sha1";
+import sha1 from "js-sha1";
 
 import { mapGetters } from "vuex";
 export default {
   data() {
     return {
       loginForm: {
-        userName: "",
+        loginName: "",
         userPwd: "",
         code: "",
       },
       mfaData: {},
       action: "login",
-      randCode: "randCode.png",
+      randCode: "",
       dynamicBg: localStorage.getItem("dynamicBg") === "true",
       loginTitle: "登录JPOM",
       rules: {
-        userName: [{ required: true, message: "请输入用户名" }],
+        loginName: [{ required: true, message: "请输入用户名" }],
         userPwd: [{ required: true, message: "请输入密码" }],
         code: [{ required: true, message: "请输入验证码" }],
         mfaCode: [
@@ -92,13 +112,17 @@ export default {
         ],
       },
       disabledCaptcha: false,
+      enabledOauth2Provides: [],
+      maxkeyImg: require(`@/assets/images/maxkey.png`),
+      giteeImg: require(`@/assets/images/gitee.svg`),
+      githubImg: require(`@/assets/images/github.png`),
     };
   },
   created() {
     this.checkSystem();
     //this.getBg();
-    this.changeCode();
-    this.getDemoInfo();
+
+    this.getLoginConfig();
   },
   computed: {
     ...mapGetters(["getWorkspaceId"]),
@@ -128,7 +152,8 @@ export default {
         if (res.data?.loginTitle) {
           this.loginTitle = res.data.loginTitle;
         }
-        this.disabledCaptcha = res.data.disabledCaptcha;
+
+        this.checkOauth2();
       });
     },
     // Controls the background display or hiding
@@ -139,21 +164,61 @@ export default {
     },
     // Get background pic
     // getBg() {},
-    getDemoInfo() {
-      demoInfo().then((res) => {
-        if (res.data && res.data.user) {
+    //
+    getLoginConfig() {
+      loginConfig().then((res) => {
+        if (res.data && res.data.demo) {
+          const demo = res.data.demo;
           const h = this.$createElement;
           this.$notification.info({
             message: "温馨提示",
-            description: h("div", null, [h("p", { domProps: { innerHTML: res.msg } }, null)]),
+            description: h("div", null, [h("p", { domProps: { innerHTML: demo.msg } }, null)]),
           });
-          this.loginForm.userName = res.data.user;
+          this.loginForm.loginName = demo.user;
+        }
+        this.disabledCaptcha = res.data?.disabledCaptcha;
+        this.enabledOauth2Provides = res.data?.oauth2Provides || [];
+        if (!this.disabledCaptcha) {
+          this.changeCode();
         }
       });
     },
     // change Code
     changeCode() {
-      this.randCode = "randCode.png?r=" + new Date().getTime();
+      // this.randCode = "randCode.png?r=" + new Date().getTime();
+      loginRandCode().then((res) => {
+        if (res.code === 200) {
+          this.randCode = res.data;
+        }
+      });
+      this.loginForm = { ...this.loginForm, code: "" };
+    },
+    checkOauth2() {
+      if (this.$route.query.code) {
+        oauth2Login({ code: this.$route.query.code, state: this.$route.query.state, provide: window.oauth2Provide }).then((res) => {
+          // 删除参数，避免刷新页面 code 已经被使用提示错误信息
+          let query = Object.assign({}, this.$route.query);
+          delete query.code, delete query.state;
+          this.$router.replace({
+            query: query,
+          });
+          // 登录不成功，更新验证码
+          if (res.code !== 200) {
+            this.changeCode();
+          } else {
+            this.startDispatchLogin(res);
+          }
+        });
+      }
+    },
+    // 跳转到第三方系统
+    toOauth2Url(provide) {
+      oauth2Url({ provide: provide }).then((res) => {
+        if (res.code === 200 && res.data) {
+          this.$message.loading({ content: "跳转到第三方系统中", key: "oauth2", duration: 0 });
+          location.href = res.data.toUrl;
+        }
+      });
     },
     // login
     handleLogin(e) {
@@ -208,14 +273,17 @@ export default {
       this.$notification.success({
         message: res.msg,
       });
-      if (!this.getWorkspaceId) {
+      const existWorkspace = res.data.bindWorkspaceModels.filter((item) => item.id === this.getWorkspaceId);
+      if (existWorkspace.length) {
+        // 缓存的还存在
+        this.dispatchLogin(res.data);
+      } else {
+        // 之前的工作空间已经不存在,切换到当前列表的第一个
         // 还没有选择工作空间，默认选中第一个 用户加载菜单
         let firstWorkspace = res.data.bindWorkspaceModels[0];
         this.$store.dispatch("changeWorkspace", firstWorkspace.id).then(() => {
           this.dispatchLogin(res.data);
         });
-      } else {
-        this.dispatchLogin(res.data);
       }
     },
     dispatchLogin(data) {
@@ -288,18 +356,29 @@ export default {
 .rand-code img {
   width: 100%;
   height: 100%;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
   display: inherit;
 }
 .btn-login {
   width: 100%;
   margin: 10px 0;
 }
-</style>
-<style>
-.ant-card-meta-title {
+/deep/ .ant-card-meta-title {
   font-size: 30px;
 }
-.ant-card-body {
+/deep/ .ant-card-body {
   padding: 30px;
+}
+
+.oauth2-item {
+  width: 40px;
+  height: 40px;
+}
+
+.oauth2-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 </style>

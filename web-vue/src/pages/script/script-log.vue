@@ -4,20 +4,8 @@
     <a-table :data-source="list" size="middle" :columns="columns" @change="changePage" :pagination="pagination" bordered rowKey="id">
       <template slot="title">
         <a-space>
-          <a-input v-model="listQuery['%name%']" placeholder="名称" @pressEnter="loadData" allowClear class="search-input-item" />
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            show-search
-            option-filter-prop="children"
-            v-model="listQuery.triggerExecType"
-            allowClear
-            placeholder="触发类型"
-            class="search-input-item"
-          >
+          <a-input v-model="listQuery['%scriptName%']" placeholder="名称" @pressEnter="loadData" allowClear class="search-input-item" />
+          <a-select show-search option-filter-prop="children" v-model="listQuery.triggerExecType" allowClear placeholder="触发类型" class="search-input-item">
             <a-select-option v-for="(val, key) in triggerExecTypeMap" :key="key">{{ val }}</a-select-option>
           </a-select>
           <a-range-picker
@@ -44,6 +32,10 @@
       <template slot="triggerExecTypeMap" slot-scope="text">
         <span>{{ triggerExecTypeMap[text] || "未知" }}</span>
       </template>
+      <template slot="global" slot-scope="text">
+        <a-tag v-if="text === 'GLOBAL'">全局</a-tag>
+        <a-tag v-else>工作空间</a-tag>
+      </template>
       <a-tooltip slot="createTimeMillis" slot-scope="text, record" :title="`${parseTime(record.createTimeMillis)}`">
         <span>{{ parseTime(record.createTimeMillis) }}</span>
       </a-tooltip>
@@ -56,25 +48,24 @@
       </template>
     </a-table>
     <!-- 日志 -->
-    <a-modal :width="'80vw'" v-model="logVisible" title="执行日志" :footer="null" :maskClosable="false">
+    <a-modal destroyOnClose :width="'80vw'" v-model="logVisible" title="执行日志" :footer="null" :maskClosable="false">
       <script-log-view v-if="logVisible" :temp="temp" />
     </a-modal>
   </div>
 </template>
 <script>
-import {getScriptLogList, scriptDel, triggerExecTypeMap} from "@/api/server-script";
-
+import { getScriptLogList, scriptDel, triggerExecTypeMap } from "@/api/server-script";
 import ScriptLogView from "@/pages/script/script-log-view";
-import {CHANGE_PAGE, COMPUTED_PAGINATION, PAGE_DEFAULT_LIST_QUERY} from "@/utils/const";
-import {parseTime} from "@/utils/time";
+import { CHANGE_PAGE, COMPUTED_PAGINATION, PAGE_DEFAULT_LIST_QUERY, parseTime } from "@/utils/const";
 
 export default {
   components: {
     ScriptLogView,
   },
   props: {
-    node: {
-      type: Object,
+    scriptId: {
+      type: String,
+      default: "",
     },
   },
   data() {
@@ -86,11 +77,12 @@ export default {
       temp: {},
       logVisible: false,
       columns: [
-        { title: "名称", dataIndex: "scriptName", ellipsis: true, scopedSlots: { customRender: "scriptName" } },
-        { title: "执行时间", dataIndex: "createTimeMillis", sorter: true, ellipsis: true, scopedSlots: { customRender: "createTimeMillis" } },
+        { title: "名称", dataIndex: "scriptName", width: 100, ellipsis: true, scopedSlots: { customRender: "scriptName" } },
+        { title: "执行时间", dataIndex: "createTimeMillis", sorter: true, ellipsis: true, width: "160px", scopedSlots: { customRender: "createTimeMillis" } },
         { title: "触发类型", dataIndex: "triggerExecType", width: 100, ellipsis: true, scopedSlots: { customRender: "triggerExecTypeMap" } },
-        { title: "执行人", dataIndex: "modifyUser", ellipsis: true, scopedSlots: { customRender: "modifyUser" } },
-        { title: "操作", dataIndex: "operation", align: "center", scopedSlots: { customRender: "operation" }, width: 150 },
+        { title: "执行域", dataIndex: "workspaceId", ellipsis: true, scopedSlots: { customRender: "global" }, width: "90px" },
+        { title: "执行人", dataIndex: "modifyUser", ellipsis: true, width: "100px", scopedSlots: { customRender: "modifyUser" } },
+        { title: "操作", dataIndex: "operation", align: "center", fixed: "right", scopedSlots: { customRender: "operation" }, width: "150px" },
       ],
     };
   },
@@ -106,7 +98,7 @@ export default {
     // 加载数据
     loadData(pointerEvent) {
       this.listQuery.page = pointerEvent?.altKey || pointerEvent?.ctrlKey ? 1 : this.listQuery.page;
-
+      this.listQuery.scriptId = this.scriptId;
       this.loading = true;
       getScriptLogList(this.listQuery).then((res) => {
         if (res.code === 200) {
@@ -116,9 +108,7 @@ export default {
         this.loading = false;
       });
     },
-    parseTime(v) {
-      return parseTime(v);
-    },
+    parseTime,
     viewLog(record) {
       this.logVisible = true;
       this.temp = record;

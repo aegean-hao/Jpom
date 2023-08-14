@@ -1,8 +1,15 @@
 <template>
-  <a-layout class="node-layout" ref="nodeLayout" id="nodeLayout">
+  <a-layout class="node-layout" ref="nodeLayout" id="nodeLayout" :class="` ${this.scrollbarFlag ? '' : 'hide-scrollbar'}`">
     <!-- 侧边栏 节点管理菜单 -->
-    <a-layout-sider theme="light" :class="`node-sider jpom-node-sider ${this.fullScreenFlag ? 'sider-scroll' : 'sider-full-screen'}`">
-      <a-menu theme="light" mode="inline" @openChange="openChange" :default-selected-keys="selectedKeys" :openKeys="openKey">
+    <a-layout-sider theme="light" :class="`node-sider jpom-node-sider ${this.fullScreenFlag ? 'sider-scroll' : 'sider-full-screen'}  ${this.scrollbarFlag ? '' : 'hide-scrollbar'}`">
+      <a-menu
+        theme="light"
+        mode="inline"
+        @openChange="openChange"
+        :default-selected-keys="selectedKeys"
+        :openKeys="openKey"
+        :class="`${this.fullScreenFlag ? 'sider-scroll' : 'sider-full-screen'} ${this.scrollbarFlag ? '' : 'hide-scrollbar'}`"
+      >
         <template v-for="(menu, index) in nodeMenuList">
           <a-sub-menu v-if="menu.childs" :key="menu.id" :class="menu.id">
             <span slot="title">
@@ -22,12 +29,13 @@
     </a-layout-sider>
     <!-- 节点管理的各个组件 -->
     <!-- class="layout-content jpom-node-content drawer-layout-content" -->
-    <a-layout-content :class="`layout-content jpom-node-content ${this.fullScreenFlag ? 'layout-content-scroll' : 'layout-content-full-screen'}`">
+
+    <a-layout-content :class="`layout-content jpom-node-content ${this.fullScreenFlag ? 'layout-content-scroll' : 'layout-content-full-screen'} ${this.scrollbarFlag ? '' : 'hide-scrollbar'}`">
       <welcome v-if="currentId === 'welcome'" :node="node" />
       <project-list v-if="currentId === 'manageList'" :node="node" />
-      <jdk-list v-if="currentId === 'jdkList'" :node="node" />
+
       <recover v-if="currentId === 'projectRecover'" :node="node" />
-      <tomcat v-if="currentId === 'tomcatManage'" :node="node" />
+
       <script-template v-if="currentId === 'script'" :node="node" />
       <script-log v-if="currentId === 'script-log'" :nodeId="node.id" />
       <nginx-list v-if="currentId === 'nginxList'" :node="node" />
@@ -35,18 +43,18 @@
       <white-list v-if="currentId === 'whitelistDirectory'" :node="node" />
       <cache v-if="currentId === 'cacheManage'" :node="node" />
       <log v-if="currentId === 'logManage'" :node="node" />
-      <upgrade v-if="currentId === 'update'" :node="node" />
+
       <config-file v-if="currentId === 'sysConfig'" :node="node" />
     </a-layout-content>
   </a-layout>
 </template>
 <script>
-import {getNodeMenu} from "@/api/menu";
+import { getNodeMenu } from "@/api/menu";
 import Welcome from "@/pages/node/node-layout/welcome";
 import ProjectList from "@/pages/node/node-layout/project/project-list";
-import JdkList from "@/pages/node/node-layout/project/jdk-list";
+
 import Recover from "@/pages/node/node-layout/project/recover-list";
-import Tomcat from "@/pages/node/node-layout/other/tomcat-list";
+
 import ScriptTemplate from "@/pages/node/node-layout/other/script-list";
 import ScriptLog from "@/pages/node/node-layout/other/script-log";
 import NginxList from "@/pages/node/node-layout/nginx/list";
@@ -54,24 +62,23 @@ import Cert from "@/pages/node/node-layout/nginx/cert";
 import WhiteList from "@/pages/node/node-layout/system/white-list.vue";
 import Cache from "@/pages/node/node-layout/system/cache";
 import Log from "@/pages/node/node-layout/system/log.vue";
-import Upgrade from "@/pages/node/node-layout/system/upgrade.vue";
+
 import ConfigFile from "@/pages/node/node-layout/system/config-file.vue";
-import {mapGetters} from "vuex";
+import { mapGetters } from "vuex";
 
 export default {
   components: {
     Welcome,
     ProjectList,
-    JdkList,
     Recover,
-    Tomcat,
+
     ScriptTemplate,
     NginxList,
     Cert,
     WhiteList,
     Cache,
     Log,
-    Upgrade,
+
     ConfigFile,
     ScriptLog,
   },
@@ -97,6 +104,9 @@ export default {
     },
     menuMultipleFlag() {
       return this.getGuideCache.menuMultipleFlag === undefined ? true : this.getGuideCache.menuMultipleFlag;
+    },
+    scrollbarFlag() {
+      return this.getGuideCache.scrollbarFlag === undefined ? true : this.getGuideCache.scrollbarFlag;
     },
   },
   watch: {},
@@ -138,7 +148,7 @@ export default {
             {
               title: "导航助手",
               element: document.querySelector(".whitelistDirectory"),
-              intro: "白名单目录是一个配置型菜单，里面配置的内容将会在</p><p><b>项目列表</b></br><b>Nginx 列表</b></br><b>证书管理</b></p> 【系统管理】->【白名单配置】。",
+              intro: "白名单目录是一个配置型菜单，里面配置的内容将会在</p><p><b>项目列表</b></br><b>Nginx 列表</b></br><b>证书管理</b></p> 【插件端配置】->【白名单配置】。",
             },
           ],
         },
@@ -181,15 +191,14 @@ export default {
   },
 };
 </script>
-<style scoped lang="stylus">
-
+<style scoped>
 .sider-scroll {
   min-height: calc(100vh -85px);
   overflow-y: auto;
 }
 
 .layout-content-scroll {
-  min-height: calc(100vh - 85px)
+  min-height: calc(100vh - 85px);
   overflow-y: auto;
 }
 
@@ -199,7 +208,7 @@ export default {
 }
 
 .layout-content-full-screen {
- height: calc(100vh - 85px);
+  height: calc(100vh - 85px);
   overflow-y: scroll;
 }
 </style>

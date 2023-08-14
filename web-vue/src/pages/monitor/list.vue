@@ -5,45 +5,15 @@
       <template slot="title">
         <a-space>
           <a-input v-model="listQuery['%name%']" @pressEnter="loadData" placeholder="监控名称" class="search-input-item" />
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            v-model="listQuery.status"
-            allowClear
-            placeholder="开启状态"
-            class="search-input-item"
-          >
+          <a-select v-model="listQuery.status" allowClear placeholder="开启状态" class="search-input-item">
             <a-select-option :value="1">开启</a-select-option>
             <a-select-option :value="0">关闭</a-select-option>
           </a-select>
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            v-model="listQuery.autoRestart"
-            allowClear
-            placeholder="自动重启"
-            class="search-input-item"
-          >
+          <a-select v-model="listQuery.autoRestart" allowClear placeholder="自动重启" class="search-input-item">
             <a-select-option :value="1">是</a-select-option>
             <a-select-option :value="0">否</a-select-option>
           </a-select>
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            v-model="listQuery.alarm"
-            allowClear
-            placeholder="报警状态"
-            class="search-input-item"
-          >
+          <a-select v-model="listQuery.alarm" allowClear placeholder="报警状态" class="search-input-item">
             <a-select-option :value="1">报警中</a-select-option>
             <a-select-option :value="0">未报警</a-select-option>
           </a-select>
@@ -70,7 +40,7 @@
       </template>
     </a-table>
     <!-- 编辑区 -->
-    <a-modal v-model="editMonitorVisible" width="60%" title="编辑监控" @ok="handleEditMonitorOk" :maskClosable="false">
+    <a-modal destroyOnClose v-model="editMonitorVisible" width="60%" title="编辑监控" @ok="handleEditMonitorOk" :maskClosable="false">
       <a-form-model ref="editMonitorForm" :rules="rules" :model="temp" :label-col="{ span: 4 }" :wrapper-col="{ span: 18 }">
         <a-form-model-item label="监控名称" prop="name">
           <a-input v-model="temp.name" :maxLength="50" placeholder="监控名称" />
@@ -112,19 +82,7 @@
           </a-auto-complete>
         </a-form-model-item>
         <a-form-model-item label="监控项目" prop="projects">
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            option-label-prop="label"
-            v-model="projectKeys"
-            mode="multiple"
-            placeholder="选择要监控的项目,file 类型项目不可以监控"
-            show-search
-            option-filter-prop="children"
-          >
+          <a-select option-label-prop="label" v-model="projectKeys" mode="multiple" placeholder="选择要监控的项目,file 类型项目不可以监控" show-search option-filter-prop="children">
             <a-select-opt-group :label="nodeMap[nodeItem.node].name" v-for="nodeItem in nodeProjectGroupList" :key="nodeItem.node">
               <a-select-option :label="`${project.name} - ${project.runMode}`" v-for="project in nodeItem.projects" :disabled="!noFileModes.includes(project.runMode)" :key="project.id">
                 【{{ project.nodeName }}】{{ project.name }} - {{ project.runMode }}
@@ -161,7 +119,7 @@
               <template slot="title">
                 <ul>
                   <li>发生报警时候请求</li>
-                  <li>传人参数有：monitorId、monitorName、nodeId、nodeName、projectId、projectName、title、content、runStatus</li>
+                  <li>传入参数有：monitorId、monitorName、nodeId、nodeName、projectId、projectName、title、content、runStatus</li>
                   <li>runStatus 值为 true 表示项目当前为运行中(异常恢复),false 表示项目当前未运行(发生异常)</li>
                 </ul>
               </template>
@@ -175,12 +133,11 @@
   </div>
 </template>
 <script>
-import {deleteMonitor, editMonitor, getMonitorList} from "@/api/monitor";
-import {noFileModes} from "@/api/node-project";
-import {getUserListAll} from "@/api/user";
-import {getNodeListAll, getProjectListAll} from "@/api/node";
-import {itemGroupBy, parseTime} from "@/utils/time";
-import {CHANGE_PAGE, COMPUTED_PAGINATION, CRON_DATA_SOURCE, PAGE_DEFAULT_LIST_QUERY} from "@/utils/const";
+import { deleteMonitor, editMonitor, getMonitorList } from "@/api/monitor";
+import { noFileModes } from "@/api/node-project";
+import { getUserListAll } from "@/api/user/user";
+import { getNodeListAll, getProjectListAll } from "@/api/node";
+import { CHANGE_PAGE, COMPUTED_PAGINATION, CRON_DATA_SOURCE, PAGE_DEFAULT_LIST_QUERY, itemGroupBy, parseTime } from "@/utils/const";
 
 export default {
   data() {

@@ -2,48 +2,7 @@
  * 节点管理 api
  */
 import axios from "./config";
-
-/**
- * jdk 列表
- * @param {String} nodeId 节点 ID
- */
-export function getJdkList(nodeId) {
-  return axios({
-    url: "/node/manage/jdk/list",
-    method: "post",
-    data: { nodeId },
-  });
-}
-
-/**
- * jdk 编辑
- * @param {nodeId, id, name, path} params
- * params.nodeId 节点 ID
- * params.id 编辑修改时判断 ID
- * params.name 名称
- * params.path jdk 路径
- */
-export function editJdk(params) {
-  return axios({
-    url: "/node/manage/jdk/update",
-    method: "post",
-    data: params,
-  });
-}
-
-/**
- * 删除 JDK
- * @param {nodeId, id} params
- * params.nodeId 节点 ID
- * params.id 编辑修改时判断 ID
- */
-export function deleteJdk(params) {
-  return axios({
-    url: "/node/manage/jdk/delete",
-    method: "post",
-    data: params,
-  });
-}
+import { loadRouterBase } from "./config";
 
 /**
  * 项目列表
@@ -67,7 +26,7 @@ export function getProjectList(params) {
  *  ids: 项目 ID 数组字符串格式 ["id1", "id2"]
  * }
  */
-export function getRuningProjectInfo(params) {
+export function getRuningProjectInfo(params, noTip) {
   return axios({
     url: "/node/manage/getProjectPort",
     method: "post",
@@ -75,6 +34,7 @@ export function getRuningProjectInfo(params) {
     timeout: 0,
     headers: {
       loading: "no",
+      tip: noTip ? "no" : "",
     },
   });
 }
@@ -133,7 +93,6 @@ export function getProjectAccessList(nodeId) {
  *  whitelistDirectory: 项目白名单路径
  *  lib: 项目文件夹
  *  group: 分组名称
- *  jdkId: JDK
  *  ...
  * }
  * @param {JSON} replicaParams {
@@ -148,7 +107,6 @@ export function editProject(params, replicaParams) {
     id: params.id,
     name: params.name,
     group: params.group,
-    jdkId: params.jdkId,
     runMode: params.runMode,
     whitelistDirectory: params.whitelistDirectory,
     lib: params.lib,
@@ -186,6 +144,14 @@ export function deleteProject(params) {
   });
 }
 
+export function releaseOutgiving(params) {
+  return axios({
+    url: "/node/manage/release-outgiving",
+    method: "post",
+    data: params,
+  });
+}
+
 /**
  * 项目文件列表
  * @param {
@@ -214,13 +180,14 @@ export function getFileList(params) {
  * } params
  */
 export function downloadProjectFile(params) {
-  return axios({
-    url: "/node/manage/file/download",
-    method: "get",
-    responseType: "blob",
-    timeout: 0,
-    params,
-  });
+  return loadRouterBase("/node/manage/file/download", params);
+  // return axios({
+  //   url: "/node/manage/file/download",
+  //   method: "get",
+  //   responseType: "blob",
+  //   timeout: 0,
+  //   params,
+  // });
 }
 
 export function readFile(formData) {
@@ -235,6 +202,7 @@ export function remoteDownload(formData) {
   return axios({
     url: "/node/manage/file/remote_download",
     method: "get",
+    timeout: 0,
     params: formData,
   });
 }
@@ -260,10 +228,33 @@ export function updateFile(formData) {
  */
 export function uploadProjectFile(formData) {
   return axios({
-    url: "/node/manage/file/upload",
+    url: "/node/manage/file/upload-sharding",
     headers: {
       "Content-Type": "multipart/form-data;charset=UTF-8",
+      loading: "no",
     },
+    method: "post",
+    // 0 表示无超时时间
+    timeout: 0,
+    data: formData,
+  });
+}
+
+/**
+ * 合并分片项目文件
+ * @param {
+ *  file: 文件 multipart/form-data
+ *  nodeId: 节点 ID
+ *  id: 项目 ID
+ *  levelName: 目录地址
+ *  type: unzip 表示压缩文件 *上传压缩文件时需要
+ *  clearType: {clear: 清空文件夹, noClear: 不清空} *上传压缩文件时需要
+ * } formData
+ */
+export function shardingMerge(formData) {
+  return axios({
+    url: "/node/manage/file/sharding-merge",
+    headers: {},
     method: "post",
     // 0 表示无超时时间
     timeout: 0,
@@ -344,13 +335,7 @@ export function getProjectLogSize(params) {
  * } params
  */
 export function downloadProjectLogFile(params) {
-  return axios({
-    url: "/node/manage/log/export.html",
-    method: "get",
-    responseType: "blob",
-    timeout: 0,
-    params,
-  });
+  return loadRouterBase("/node/manage/log/export.html", params);
 }
 
 /**
@@ -378,13 +363,7 @@ export function getLogBackList(params) {
  * } params
  */
 export function downloadProjectLogBackFile(params) {
-  return axios({
-    url: "/node/manage/log/logBack_download",
-    method: "get",
-    responseType: "blob",
-    timeout: 0,
-    params,
-  });
+  return loadRouterBase("/node/manage/log/logBack_download", params);
 }
 
 /**
@@ -421,56 +400,56 @@ export function getInternalData(params) {
   });
 }
 
-/**
- * 查看线程
- * @param {
- *  nodeId: 节点 ID
- * } params
- */
-export function getThreadInfo(params) {
-  return axios({
-    url: "/node/manage/threadInfos",
-    method: "post",
-    timeout: 0,
-    data: params,
-  });
-}
+// /**
+//  * 查看线程
+//  * @param {
+//  *  nodeId: 节点 ID
+//  * } params
+//  */
+// export function getThreadInfo(params) {
+//   return axios({
+//     url: "/node/manage/threadInfos",
+//     method: "post",
+//     timeout: 0,
+//     data: params,
+//   });
+// }
 
-/**
- * 导出堆栈信息
- * @param {
- *  nodeId: 节点 ID
- *  tag: 项目 ID
- *  copyId: copyId
- * } params
- */
-export function exportStack(params) {
-  return axios({
-    url: "/node/manage/stack",
-    method: "get",
-    responseType: "blob",
-    timeout: 0,
-    params,
-  });
-}
+// /**
+//  * 导出堆栈信息
+//  * @param {
+//  *  nodeId: 节点 ID
+//  *  tag: 项目 ID
+//  *  copyId: copyId
+//  * } params
+//  */
+// export function exportStack(params) {
+//   return axios({
+//     url: "/node/manage/stack",
+//     method: "get",
+//     responseType: "blob",
+//     timeout: 0,
+//     params,
+//   });
+// }
 
-/**
- * 导出内存信息
- * @param {
- *  nodeId: 节点 ID
- *  tag: 项目 ID
- *  copyId: copyId
- * } params
- */
-export function exportRam(params) {
-  return axios({
-    url: "/node/manage/ram",
-    method: "get",
-    responseType: "blob",
-    timeout: 0,
-    params,
-  });
-}
+// /**
+//  * 导出内存信息
+//  * @param {
+//  *  nodeId: 节点 ID
+//  *  tag: 项目 ID
+//  *  copyId: copyId
+//  * } params
+//  */
+// export function exportRam(params) {
+//   return axios({
+//     url: "/node/manage/ram",
+//     method: "get",
+//     responseType: "blob",
+//     timeout: 0,
+//     params,
+//   });
+// }
 
 /**
  * 加载副本集
@@ -487,23 +466,23 @@ export function getProjectReplicaList(params) {
   });
 }
 
-/**
- * 查询节点目录是否存在
- * @param {
- *  nodeId: 节点 ID,
- *  newLib: 新目录地址
- * } params
- */
-export function nodeJudgeLibExist(params) {
-  return axios({
-    url: "/node/manage/judge_lib.json",
-    method: "post",
-    data: params,
-    headers: {
-      tip: "no",
-    },
-  });
-}
+// /**
+//  * 查询节点目录是否存在
+//  * @param {
+//  *  nodeId: 节点 ID,
+//  *  newLib: 新目录地址
+//  * } params
+//  */
+// export function nodeJudgeLibExist(params) {
+//   return axios({
+//     url: "/node/manage/judge_lib.json",
+//     method: "post",
+//     data: params,
+//     headers: {
+//       tip: "no",
+//     },
+//   });
+// }
 
 /**
  * 重启项目
@@ -566,6 +545,18 @@ export function stopProject(params) {
 }
 
 /**
+ * 获取触发器地址
+ * @param {*} id
+ */
+export function getProjectTriggerUrl(data) {
+  return axios({
+    url: "/node/project-trigger-url",
+    method: "post",
+    data: data,
+  });
+}
+
+/**
  * 新增目录  或文件
  * @param params
  * @returns {id, path, name,unFolder} params x
@@ -592,6 +583,16 @@ export function renameFileFolder(params) {
 }
 
 /**
+ * 构建分组
+ */
+export function getProjectGroupAll() {
+  return axios({
+    url: "/node/list-project-group-all",
+    method: "get",
+  });
+}
+
+/**
  * 所有的运行模式
  */
 export const runModeList = ["Dsl", "ClassPath", "Jar", "JarWar", "JavaExtDirsCp", "File"];
@@ -605,3 +606,32 @@ export const javaModes = ["ClassPath", "Jar", "JarWar", "JavaExtDirsCp"];
  * 有状态管理的运行模式
  */
 export const noFileModes = ["ClassPath", "Jar", "JarWar", "JavaExtDirsCp", "Dsl"];
+
+/*
+ * 下载导入模板
+ *
+ */
+export function importTemplate(data) {
+  return loadRouterBase("/node/manage/import-template", data);
+}
+
+/*
+ * 导出数据
+ *
+ */
+export function exportData(data) {
+  return loadRouterBase("/node/manage/export-data", data);
+}
+// 导入数据
+export function importData(formData) {
+  return axios({
+    url: "/node/manage/import-data",
+    headers: {
+      "Content-Type": "multipart/form-data;charset=UTF-8",
+    },
+    method: "post",
+    // 0 表示无超时时间
+    timeout: 0,
+    data: formData,
+  });
+}

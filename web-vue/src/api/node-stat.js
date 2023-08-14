@@ -1,12 +1,12 @@
 import axios from "./config";
-import { parseTime } from "@/utils/time";
+import { parseTime, formatPercent2, renderSize, formatDuration } from "@/utils/const";
 import echarts from "echarts";
 
-// node 列表
-export function getStatist(params) {
+// 获取机器信息
+export function machineInfo(params) {
   return axios({
-    url: "/node/stat/list_data.json",
-    method: "post",
+    url: "/node/machine-info",
+    method: "get",
     params: params,
     headers: {
       loading: "no",
@@ -14,11 +14,24 @@ export function getStatist(params) {
   });
 }
 
-// node 列表
-export function statusStat() {
+// 机器文件系统
+export function machineDiskInfo(params) {
   return axios({
-    url: "/node/stat/status_stat.json",
+    url: "/node/disk-info",
     method: "get",
+    params,
+    headers: {
+      loading: "no",
+    },
+  });
+}
+
+// 机器硬件硬盘
+export function machineHwDiskInfo(params) {
+  return axios({
+    url: "/node/hw-disk-info",
+    method: "get",
+    params,
     headers: {
       loading: "no",
     },
@@ -82,14 +95,21 @@ export function generateNodeTopChart(data) {
     smooth: true,
   };
   const memoryItem = {
-    name: "内存占用(累计)",
+    name: "内存占用",
     type: "line",
     data: [],
     showSymbol: false,
     smooth: true,
   };
-  const memoryUsedItem = {
-    name: "内存占用",
+  const virtualMemory = {
+    name: "虚拟内存占用",
+    type: "line",
+    data: [],
+    showSymbol: false,
+    smooth: true,
+  };
+  const swapMemory = {
+    name: "交互内存占用",
     type: "line",
     data: [],
     showSymbol: false,
@@ -101,16 +121,14 @@ export function generateNodeTopChart(data) {
     cpuItem.data.push(parseFloat(item.occupyCpu));
     diskItem.data.push(parseFloat(item.occupyDisk));
     memoryItem.data.push(parseFloat(item.occupyMemory));
-    if (item.occupyMemoryUsed) {
-      memoryUsedItem.data.push(parseFloat(item.occupyMemoryUsed));
-    }
+    swapMemory.data.push(parseFloat(item.occupySwapMemory || -0.1));
+    virtualMemory.data.push(parseFloat(item.occupyVirtualMemory || -0.1));
+
     scales.push(parseTime(item.monitorTime));
   }
 
-  const series = [cpuItem, memoryItem, diskItem];
-  if (memoryUsedItem.data.length > 0) {
-    series.push(memoryUsedItem);
-  }
+  const series = [cpuItem, memoryItem, diskItem, swapMemory, virtualMemory];
+
   const legends = series.map((data) => {
     return data.name;
   });
@@ -131,6 +149,86 @@ export function generateNodeTopChart(data) {
       },
       max: 100,
     },
+    tooltip: {
+      trigger: "axis",
+      show: true,
+      formatter: function (params) {
+        var html = params[0].name + "<br>";
+        for (var i = 0; i < params.length; i++) {
+          html += params[i].marker + params[i].seriesName + ":" + formatPercent2(params[i].value) + "<br>";
+        }
+        return html;
+      },
+    },
+    series: series,
+  });
+}
+
+/**
+ * 节点网络统计
+ * @param { JSON } data
+ * @returns
+ */
+export function generateNodeNetChart(data) {
+  const rxItem = {
+    name: "接收",
+    type: "line",
+    data: [],
+    showSymbol: false,
+    // 设置折线为曲线
+    smooth: true,
+  };
+  const txItem = {
+    name: "发送",
+    type: "line",
+    data: [],
+    showSymbol: false,
+    smooth: true,
+  };
+  const scales = [];
+  for (var i = data.length - 1; i >= 0; i--) {
+    const item = data[i];
+    txItem.data.push(item.netTxBytes);
+    rxItem.data.push(item.netRxBytes);
+
+    scales.push(parseTime(item.monitorTime));
+  }
+
+  const series = [rxItem, txItem];
+
+  const legends = series.map((data) => {
+    return data.name;
+  });
+
+  // 指定图表的配置项和数据
+  return Object.assign({}, defaultData, {
+    legend: {
+      data: legends,
+    },
+    xAxis: {
+      data: scales,
+    },
+    yAxis: {
+      type: "value",
+      axisLabel: {
+        // 设置y轴数值为 bit/s
+        // formatter: "{value} bit/s",
+        formatter: (value) => {
+          return renderSize(value);
+        },
+      },
+    },
+    tooltip: {
+      trigger: "axis",
+      show: true,
+      formatter: function (params) {
+        var html = params[0].name + "<br>";
+        for (var i = 0; i < params.length; i++) {
+          html += params[i].marker + params[i].seriesName + ":" + renderSize(params[i].value) + "/s <br>";
+        }
+        return html;
+      },
+    },
     series: series,
   });
 }
@@ -142,7 +240,7 @@ export function generateNodeTopChart(data) {
  */
 export function generateNodeNetworkTimeChart(data) {
   const dataArray = {
-    name: "网络延迟ms",
+    name: "网络延迟",
     type: "line",
     data: [],
     showSymbol: false,
@@ -152,7 +250,7 @@ export function generateNodeNetworkTimeChart(data) {
   const scales = [];
   for (var i = data.length - 1; i >= 0; i--) {
     const item = data[i];
-    dataArray.data.push(parseFloat(item.networkTime));
+    dataArray.data.push(parseFloat(item.networkDelay));
     scales.push(parseTime(item.monitorTime));
   }
 
@@ -172,7 +270,21 @@ export function generateNodeNetworkTimeChart(data) {
     yAxis: {
       type: "value",
       axisLabel: {
-        formatter: "{value} ms",
+        // formatter: "{value} ms",
+        formatter: (value) => {
+          return formatDuration(value);
+        },
+      },
+    },
+    tooltip: {
+      trigger: "axis",
+      show: true,
+      formatter: function (params) {
+        var html = params[0].name + "<br>";
+        for (var i = 0; i < params.length; i++) {
+          html += params[i].marker + params[i].seriesName + ":" + formatDuration(params[i].value) + " <br>";
+        }
+        return html;
       },
     },
     series: series,
@@ -195,12 +307,25 @@ export function drawChart(data, domId, parseFn) {
   // 绘制图表
   const historyChart = echarts.init(historyChartDom);
   historyChart.setOption(option);
+  return historyChart;
 }
 
-export const status = {
-  1: "无法连接",
-  0: "正常",
-  2: "授权信息错误",
-  3: "状态码错误",
-  4: "关闭中",
-};
+// export const status = {
+//   1: "无法连接",
+//   0: "正常",
+//   2: "授权信息错误",
+//   3: "状态码错误",
+//   4: "关闭中",
+// };
+
+// 机器网络
+export function machineNetworkInterfaces(params) {
+  return axios({
+    url: "/node/network-interfaces",
+    method: "get",
+    params,
+    headers: {
+      loading: "no",
+    },
+  });
+}

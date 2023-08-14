@@ -3,15 +3,17 @@
     <a-timeline>
       <a-timeline-item>
         <span class="layui-elem-quote">
-          基础信息：{{ temp.name }} - {{ temp.osType }} - {{ temp.operatingSystem }} - <a-tag>{{ temp.architecture }}</a-tag>
+          基础信息：{{ temp.name }} - {{ temp.osType }} - {{ temp.operatingSystem }} - <a-tag>{{ temp.architecture }} </a-tag> <a-tag>{{ temp.id }}</a-tag>
         </span>
       </a-timeline-item>
       <a-timeline-item>
-        <span class="layui-elem-quote">版本：{{ temp.serverVersion }} </span>
+        <span class="layui-elem-quote">
+          版本：<a-tag>{{ temp.serverVersion }}</a-tag> <a-tag>{{ temp.kernelVersion }}</a-tag>
+        </span>
       </a-timeline-item>
       <a-timeline-item>
         <span class="layui-elem-quote"
-          >资源： <a-tag>cpu:{{ temp.nCPU }}</a-tag> <a-tag>内存:{{ renderSize(temp.memTotal) }}</a-tag>
+          >资源： <a-tag>cpu:{{ temp.nCPU || temp.NCPU }}</a-tag> <a-tag>内存:{{ renderSize(temp.memTotal) }}</a-tag>
 
           <a-tag>容器数：{{ temp.containers }}</a-tag>
           <a-tag>镜像数：{{ temp.images }}</a-tag>
@@ -35,6 +37,7 @@
                 <div v-if="temp.swarm.remoteManagers">
                   管理列表： <a-tag v-for="(item, index) in temp.swarm.remoteManagers" :key="index">{{ item.addr }}</a-tag>
                 </div>
+                <div>管理节点：{{ temp.swarm.controlAvailable ? "是" : "否" }}</div>
               </a-space>
             </div>
           </div>
@@ -67,17 +70,32 @@
 </template>
 <script>
 import { dockerInfo } from "@/api/docker-api";
-import { renderSize } from "@/utils/time";
+import { renderSize } from "@/utils/const";
 export default {
   props: {
     id: {
       type: String,
+      default: "",
+    },
+    urlPrefix: {
+      type: String,
+    },
+    machineDockerId: {
+      type: String,
+      default: "",
     },
   },
   data() {
     return {
       temp: {},
+
+      rules: {},
     };
+  },
+  computed: {
+    reqDataId() {
+      return this.id || this.machineDockerId;
+    },
   },
   mounted() {
     this.loadData();
@@ -87,8 +105,8 @@ export default {
     renderSize,
     // load data
     loadData() {
-      dockerInfo({
-        id: this.id,
+      dockerInfo(this.urlPrefix, {
+        id: this.reqDataId,
       }).then((res) => {
         if (res.code === 200) {
           this.temp = res.data;

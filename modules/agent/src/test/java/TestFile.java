@@ -23,6 +23,7 @@
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.io.resource.ResourceUtil;
+import cn.hutool.core.io.unit.DataSizeUtil;
 import cn.hutool.core.util.CharsetUtil;
 import cn.hutool.core.util.ZipUtil;
 import org.junit.Test;
@@ -34,7 +35,7 @@ import java.nio.file.Paths;
 import java.util.stream.Stream;
 
 /**
- * Created by jiangzeyin on 2019/4/22.
+ * Created by bwcx_jzy on 2019/4/22.
  */
 public class TestFile {
     public static void main(String[] args) throws IOException {
@@ -43,7 +44,7 @@ public class TestFile {
 
         InputStream inputStream = new FileInputStream("D:\\SystemDocument\\Desktop\\Desktop.zip");
 
-        String code = IoUtil.readHex28Upper(inputStream);
+        String code = IoUtil.readHex64Upper(inputStream);
         System.out.println(code);
 
         System.out.println(FileUtil.getMimeType("D:\\SystemDocument\\Desktop\\Desktop.zip"));
@@ -81,5 +82,10 @@ public class TestFile {
             System.out.println(lines.skip(32).findFirst().get());
         }
 //        FileUtil.tail();
+    }
+
+    @Test
+    public void test() {
+        System.out.println(DataSizeUtil.format(1000));
     }
 }

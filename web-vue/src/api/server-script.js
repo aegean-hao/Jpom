@@ -12,17 +12,6 @@ export function getScriptList(params) {
 }
 
 /**
- * script 服务端中的所有列表
- */
-export function getScriptListAll(params) {
-  return axios({
-    url: "/script/list-all",
-    method: "get",
-    params: params,
-  });
-}
-
-/**
  *  保存脚本
  * @param {Json} params
  * @returns
@@ -101,7 +90,28 @@ export function syncToWorkspace(params) {
   });
 }
 
+export function getScriptItem(params) {
+  return axios({
+    url: "/script/get",
+    method: "get",
+    params: params,
+  });
+}
+
+/**
+ * 获取触发器地址
+ * @param {*} id
+ */
+export function getTriggerUrl(data) {
+  return axios({
+    url: "/script/trigger-url",
+    method: "post",
+    data: data,
+  });
+}
+
 export const triggerExecTypeMap = {
   0: "手动",
   1: "自动",
+  2: "触发器",
 };

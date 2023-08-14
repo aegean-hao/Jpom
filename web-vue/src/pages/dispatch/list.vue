@@ -1,36 +1,31 @@
 <template>
   <div class="full-content">
-    <!-- 表格 :scroll="{x: 740, y: tableHeight - 60}" scroll 跟 expandedRowRender 不兼容，没法同时使用不然会多出一行数据-->
-    <a-table :columns="columns" :data-source="list" bordered rowKey="id" @expand="expand" :pagination="pagination" @change="changePage">
+    <a-table
+      :columns="columns"
+      size="middle"
+      :data-source="list"
+      bordered
+      rowKey="id"
+      :pagination="pagination"
+      @change="
+        (pagination, filters, sorter) => {
+          this.listQuery = CHANGE_PAGE(this.listQuery, { pagination, sorter });
+          this.loadData();
+        }
+      "
+    >
       <template slot="title">
         <a-space>
-          <a-input class="search-input-item" @pressEnter="loadData" v-model="listQuery['%id%']" placeholder="id" />
+          <a-input class="search-input-item" @pressEnter="loadData" v-model="listQuery['%id%']" placeholder="分发id" />
           <a-input class="search-input-item" @pressEnter="loadData" v-model="listQuery['%name%']" placeholder="名称" />
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            v-model="listQuery.outGivingProject"
-            allowClear
-            placeholder="分发类型"
-            class="search-input-item"
-          >
+          <a-select v-model="listQuery.group" allowClear placeholder="请选择分组" class="search-input-item" @change="loadData">
+            <a-select-option v-for="group in groupList" :key="group">{{ group }}</a-select-option>
+          </a-select>
+          <a-select v-model="listQuery.outGivingProject" allowClear placeholder="分发类型" class="search-input-item">
             <a-select-option :value="1">独立</a-select-option>
             <a-select-option :value="0">关联</a-select-option>
           </a-select>
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            v-model="listQuery.status"
-            allowClear
-            placeholder="请选择状态"
-            class="search-input-item"
-          >
+          <a-select v-model="listQuery.status" allowClear placeholder="请选择状态" class="search-input-item">
             <a-select-option v-for="(name, key) in statusMap" :key="key">{{ name }}</a-select-option>
           </a-select>
           <a-tooltip title="按住 Ctr 或者 Alt/Option 键点击按钮快速回到第一页">
@@ -51,16 +46,23 @@
             </template>
             <a-icon type="question-circle" theme="filled" />
           </a-tooltip>
+          <a-statistic-countdown format=" s 秒" title="刷新倒计时" :value="countdownTime" @finish="silenceLoadData" />
         </a-space>
       </template>
-      <a-tooltip slot="id" slot-scope="text" placement="topLeft" :title="text">
+      <a-tooltip slot="tooltip" slot-scope="text" placement="topLeft" :title="text">
         <span>{{ text }}</span>
       </a-tooltip>
-      <a-tooltip slot="name" slot-scope="text" placement="topLeft" :title="text">
-        <span>{{ text }}</span>
-      </a-tooltip>
-      <a-tooltip slot="status" slot-scope="text" placement="topLeft" :title="statusMap[text]">
-        <span>{{ statusMap[text] }}</span>
+      <template slot="name" slot-scope="text, record">
+        <a-tooltip placement="topLeft" :title="text">
+          <a-button size="small" style="padding: 0" type="link" icon="fullscreen" @click="handleViewStatus(record)">{{ text }}</a-button>
+        </a-tooltip>
+      </template>
+
+      <a-tooltip slot="status" slot-scope="text, record" placement="topLeft" :title="`${record.statusMsg || ''}`">
+        <a-tag v-if="text === 2" color="green">{{ statusMap[text] || "未知" }}</a-tag>
+        <a-tag v-else-if="text === 1 || text === 0" color="orange">{{ statusMap[text] || "未知" }}</a-tag>
+        <a-tag v-else-if="text === 3 || text === 4" color="red">{{ statusMap[text] || "未知" }}</a-tag>
+        <a-tag v-else>{{ statusMap[text] || "未知" }}</a-tag>
       </a-tooltip>
 
       <a-tooltip slot="clearOld" slot-scope="text"> <a-switch size="small" checked-children="是" un-checked-children="否" disabled :checked="text" /></a-tooltip>
@@ -94,11 +96,10 @@
       <template slot="operation" slot-scope="text, record">
         <a-space>
           <a-button size="small" type="primary" @click="handleDispatch(record)">分发文件</a-button>
-          <a-button size="small" type="primary" v-if="list_expanded[record.id]" @click="handleReload(record)">刷新</a-button>
-          <template v-else>
-            <a-button size="small" type="primary" v-if="record.outGivingProject" @click="handleEditDispatchProject(record)">编辑</a-button>
-            <a-button size="small" type="primary" v-else @click="handleEditDispatch(record)">编辑</a-button>
-          </template>
+
+          <a-button size="small" type="primary" v-if="record.outGivingProject" @click="handleEditDispatchProject(record)">编辑</a-button>
+          <a-button size="small" type="primary" v-else @click="handleEditDispatch(record)">编辑</a-button>
+
           <a-dropdown>
             <a class="ant-dropdown-link" @click="(e) => e.preventDefault()">
               更多
@@ -106,53 +107,35 @@
             </a>
             <a-menu slot="overlay">
               <a-menu-item>
-                <a-button type="danger" v-if="!list_expanded[record.id]" @click="handleDelete(record)">{{ record.outGivingProject ? "删除" : "释放" }}</a-button>
+                <a-button type="danger" size="small" :disabled="record.status !== 1" @click="handleCancel(record)">取消分发</a-button>
               </a-menu-item>
               <a-menu-item>
-                <a-button type="danger" @click="handleUnbind(record)">解绑</a-button>
+                <a-button type="danger" size="small" @click="handleDelete(record)">{{ record.outGivingProject ? "删除" : "释放" }}</a-button>
+              </a-menu-item>
+              <a-menu-item v-if="record.outGivingProject">
+                <a-button type="danger" size="small" @click="handleDelete(record, 'thorough')"> 彻底删除</a-button>
+              </a-menu-item>
+              <a-menu-item>
+                <a-button type="danger" size="small" @click="handleUnbind(record)">解绑</a-button>
+              </a-menu-item>
+              <a-menu-item>
+                <a-button type="primary" size="small" @click="handleViewDispatchManager(record)">配置</a-button>
               </a-menu-item>
             </a-menu>
           </a-dropdown>
         </a-space>
       </template>
-      <!-- 嵌套表格 -->
-      <a-table
-        slot="expandedRowRender"
-        slot-scope="text"
-        :loading="childLoading"
-        :columns="childColumns"
-        size="middle"
-        :bordered="false"
-        :data-source="text.children"
-        :pagination="false"
-        :rowKey="(record, index) => record.nodeId + record.projectId + index"
-      >
-        <a-tooltip slot="nodeId" slot-scope="text" placement="topLeft" :title="text">
-          <span>{{ nodeNameMap[text] || text }}</span>
-        </a-tooltip>
-        <a-tooltip slot="projectName" slot-scope="text" placement="topLeft" :title="text">
-          <span>{{ text }}</span>
-        </a-tooltip>
-        <a-tooltip slot="outGivingResult" slot-scope="text, item" placement="topLeft" :title="text">
-          <span>{{ text }} {{ item.errorMsg || "" }}</span>
-        </a-tooltip>
-        <template slot="projectStatus" slot-scope="text, item">
-          <a-tooltip v-if="item.errorMsg" :title="item.errorMsg">
-            <span>{{ item.errorMsg }}</span>
-          </a-tooltip>
-          <a-switch v-else :checked="text" size="small" checked-children="运行中" un-checked-children="未运行" />
-        </template>
-
-        <template slot="child-operation" slot-scope="text, record">
-          <a-space>
-            <a-button size="small" :disabled="!record.projectName" type="primary" @click="handleFile(record)">文件</a-button>
-            <a-button size="small" :disabled="!record.projectName" type="primary" @click="handleConsole(record)">控制台</a-button>
-          </a-space>
-        </template>
-      </a-table>
     </a-table>
     <!-- 添加/编辑关联项目 -->
-    <a-modal v-model="linkDispatchVisible" width="600px" :title="temp.type === 'edit' ? '编辑关联项目' : '添加关联项目'" @ok="handleLinkDispatchOk" :maskClosable="false" @cancel="clearDispatchList">
+    <a-modal
+      destroyOnClose
+      v-model="linkDispatchVisible"
+      width="900px"
+      :title="temp.type === 'edit' ? '编辑关联项目' : '添加关联项目'"
+      @ok="handleLinkDispatchOk"
+      :maskClosable="false"
+      @cancel="clearDispatchList"
+    >
       <a-form-model ref="linkDispatchForm" :rules="rules" :model="temp" :label-col="{ span: 4 }" :wrapper-col="{ span: 18 }">
         <a-form-model-item prop="id">
           <template slot="label">
@@ -162,69 +145,101 @@
               <a-icon type="question-circle" theme="filled" />
             </a-tooltip>
           </template>
-          <a-input v-model="temp.id" :maxLength="50" :disabled="temp.type === 'edit'" placeholder="创建之后不能修改" />
+          <a-input :maxLength="50" v-model="temp.id" v-if="temp.type === 'edit'" :disabled="temp.type === 'edit'" placeholder="创建之后不能修改" />
+          <template v-else>
+            <a-input-search
+              :maxLength="50"
+              v-model="temp.id"
+              placeholder="创建之后不能修改"
+              @search="
+                () => {
+                  this.temp = { ...this.temp, id: randomStr(6) };
+                }
+              "
+            >
+              <template slot="enterButton">
+                <a-button type="primary"> 随机生成 </a-button>
+              </template>
+            </a-input-search>
+          </template>
+          <!-- <a-input v-model="temp.id" :maxLength="50" :disabled="temp.type === 'edit'" placeholder="创建之后不能修改" /> -->
         </a-form-model-item>
+
         <a-form-model-item label="分发名称" prop="name">
-          <a-input v-model="temp.name" :maxLength="50" placeholder="分发名称" />
+          <a-row>
+            <a-col :span="10">
+              <a-input v-model="temp.name" :maxLength="50" placeholder="分发名称" />
+            </a-col>
+            <a-col :span="4" style="text-align: right">分组名称：</a-col>
+            <a-col :span="10">
+              <custom-select suffixIcon="" :maxLength="50" v-model="temp.group" :data="groupList" inputPlaceholder="添加分组" selectPlaceholder="选择分组"> </custom-select>
+            </a-col>
+          </a-row>
         </a-form-model-item>
 
         <a-form-model-item label="分发节点" required>
-          <a-list item-layout="horizontal" :data-source="dispatchList">
-            <a-list-item slot="renderItem" slot-scope="item, index" v-if="item.status">
-              <span>节点: </span>
-              <a-select
-                placeholder="请选择节点"
-                notFoundContent="暂无节点信息"
-                style="width: 140px"
-                :defaultValue="item.index === '' ? undefined : item.index"
-                @change="(value) => handleNodeListChange(value, index)"
-                :disabled="item.index === '' ? false : !nodeNameList[item.index].nodeData || !nodeNameList[item.index].nodeData.openStatus"
-              >
-                <a-select-option :value="index" v-for="(nodeList, index) in nodeNameList" :key="nodeList.id" :disabled="!nodeList.nodeData || nodeList.nodeData.openStatus !== 1">
-                  {{ nodeList.nodeData && nodeList.nodeData.name }}
-                </a-select-option>
-              </a-select>
-              <span>项目: </span>
-              <a-select
-                style="width: 150px"
-                :placeholder="dispatchList[index].placeholder"
-                :defaultValue="item.projectId === '' ? undefined : item.projectId"
-                notFoundContent="此节点暂无项目"
-                @change="(value) => handleProjectChange(value, index)"
-                :disabled="dispatchList[index].disabled"
-              >
-                <a-select-option
-                  :value="project.projectId"
-                  v-for="project in item.project"
-                  :disabled="
-                    dispatchList.filter((item, nowIndex) => {
-                      return item.nodeId === project.nodeId && item.projectId === project.projectId && nowIndex !== index;
-                    }).length > 0
-                  "
-                  :key="project.projectId"
-                >
-                  {{ project.name }}
-                </a-select-option>
-              </a-select>
-              <a-button type="danger" @click="delDispachList(index)" icon="delete"></a-button>
-            </a-list-item>
-          </a-list>
-          <a-button type="primary" @click="addDispachList">添加</a-button>
-        </a-form-model-item>
-        <a-form-model-item label="分发后操作" prop="afterOpt">
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
+          <a-list
+            item-layout="horizontal"
+            :data-source="dispatchList"
+            :locale="{
+              emptyText: '暂无数据,请先添加节点项目数据',
+            }"
+            :rowKey="
+              (item) => {
+                return item.nodeId + item.projectId + item.index;
               }
             "
-            v-model="temp.afterOpt"
-            placeholder="请选择发布后操作"
           >
+            <a-list-item slot="renderItem" slot-scope="item, index">
+              <a-space>
+                <span>节点: </span>
+                <a-select
+                  placeholder="请选择节点"
+                  notFoundContent="暂无节点信息"
+                  style="width: 140px"
+                  :value="item.nodeId ? item.nodeId : undefined"
+                  @change="(nodeId) => handleNodeListChange(nodeId, index)"
+                  :disabled="item.nodeId || (nodeIdMap[item.nodeId] && nodeIdMap[item.nodeId].openStatus !== 1) ? true : false"
+                >
+                  <a-select-option v-for="nodeList in nodeProjectsList" :key="nodeList.id" :disabled="nodeIdMap[nodeList.id].openStatus !== 1">
+                    {{ nodeNameMap[nodeList.id] }}
+                  </a-select-option>
+                </a-select>
+                <span>项目: </span>
+                <a-select
+                  style="width: 350px"
+                  :placeholder="item.placeholder"
+                  :defaultValue="item.projectId ? item.projectId : undefined"
+                  notFoundContent="此节点暂无项目"
+                  @change="(projectId) => handleProjectChange(projectId, index)"
+                  :disabled="dispatchList[index].disabled"
+                >
+                  <a-select-option
+                    :value="project.projectId"
+                    v-for="project in nodeProjectsList.filter((nitem) => nitem.id == item.nodeId)[0] && nodeProjectsList.filter((nitem) => nitem.id == item.nodeId)[0].projects"
+                    :disabled="
+                      project.outGivingProject ||
+                      dispatchList.filter((item, nowIndex) => {
+                        return item.nodeId === project.nodeId && item.projectId === project.projectId && nowIndex !== index;
+                      }).length > 0
+                    "
+                    :key="project.projectId"
+                  >
+                    <a-tooltip :title="`${project.outGivingProject ? '【独立分发】' : ''} ${project.name}`"> {{ project.outGivingProject ? "【独立分发】" : "" }} {{ project.name }} </a-tooltip>
+                  </a-select-option>
+                </a-select>
+                <a-button type="danger" @click="delDispachList(index)" icon="delete" size="small"></a-button>
+              </a-space>
+            </a-list-item>
+          </a-list>
+          <a-button type="primary" @click="addDispachList" size="small">添加</a-button>
+        </a-form-model-item>
+        <a-form-model-item label="分发后操作" prop="afterOpt">
+          <a-select v-model="temp.afterOpt" placeholder="请选择发布后操作">
             <a-select-option v-for="item in afterOptList" :key="item.value">{{ item.title }}</a-select-option>
           </a-select>
         </a-form-model-item>
-        <a-form-model-item prop="intervalTime">
+        <a-form-model-item prop="intervalTime" v-if="temp.afterOpt === 2 || temp.afterOpt === 3">
           <template slot="label">
             间隔时间
             <a-tooltip v-show="temp.type !== 'edit'">
@@ -237,6 +252,9 @@
           </template>
           <a-input-number :min="0" v-model="temp.intervalTime" placeholder="分发间隔时间 （顺序重启、完整顺序重启）方式才生效" style="width: 100%" />
         </a-form-model-item>
+        <a-form-model-item prop="secondaryDirectory" label="二级目录">
+          <a-input v-model="temp.secondaryDirectory" placeholder="不填写则发布至项目的根目录" />
+        </a-form-model-item>
         <a-form-model-item prop="clearOld">
           <template slot="label">
             清空发布
@@ -245,12 +263,44 @@
               <a-icon type="question-circle" theme="filled" />
             </a-tooltip>
           </template>
-          <a-switch v-model="temp.clearOld" checked-children="是" un-checked-children="否" />
+          <a-row>
+            <a-col :span="4">
+              <a-switch v-model="temp.clearOld" checked-children="是" un-checked-children="否" />
+            </a-col>
+
+            <a-col :span="4" style="text-align: right">
+              <a-tooltip v-if="temp.type !== 'edit'">
+                <template slot="title"> 发布前停止是指在发布文件到项目文件时先将项目关闭，再进行文件替换。避免 windows 环境下出现文件被占用的情况 </template>
+                <a-icon type="question-circle" theme="filled" />
+              </a-tooltip>
+              发布前停止：
+            </a-col>
+            <a-col :span="4">
+              <a-switch v-model="temp.uploadCloseFirst" checked-children="是" un-checked-children="否" />
+            </a-col>
+          </a-row>
+        </a-form-model-item>
+        <a-form-model-item prop="webhook">
+          <template slot="label">
+            WebHooks
+            <a-tooltip v-show="!temp.id">
+              <template slot="title">
+                <ul>
+                  <li>分发过程请求对应的地址,开始分发,分发完成,分发失败,取消分发</li>
+                  <li>传入参数有：outGivingId、outGivingName、status、statusMsg、executeTime</li>
+                  <li>status 的值有：1:分发中、2：分发结束、3：已取消、4：分发失败</li>
+                  <li>异步请求不能保证有序性</li>
+                </ul>
+              </template>
+              <a-icon type="question-circle" theme="filled" />
+            </a-tooltip>
+          </template>
+          <a-input v-model="temp.webhook" placeholder="分发过程请求,非必填，GET请求" />
         </a-form-model-item>
       </a-form-model>
     </a-modal>
     <!-- 创建/编辑分发项目 -->
-    <a-modal v-model="editDispatchVisible" width="60vw" :title="temp.type === 'edit' ? '编辑分发项目' : '创建分发项目'" @ok="handleEditDispatchOk" :maskClosable="false">
+    <a-modal destroyOnClose v-model="editDispatchVisible" width="60vw" :title="temp.type === 'edit' ? '编辑分发项目' : '创建分发项目'" @ok="handleEditDispatchOk" :maskClosable="false">
       <a-form-model ref="editDispatchForm" :rules="rules" :model="temp" :label-col="{ span: 4 }" :wrapper-col="{ span: 18 }">
         <a-form-model-item prop="id">
           <template slot="label">
@@ -260,10 +310,35 @@
               <a-icon type="question-circle" theme="filled" />
             </a-tooltip>
           </template>
-          <a-input v-model="temp.id" :maxLength="50" :disabled="temp.type === 'edit'" placeholder="创建之后不能修改" />
+          <a-input :maxLength="50" v-model="temp.id" v-if="temp.type === 'edit'" :disabled="temp.type === 'edit'" placeholder="创建之后不能修改,分发 ID 等同于项目 ID" />
+          <template v-else>
+            <a-input-search
+              :maxLength="50"
+              v-model="temp.id"
+              placeholder="创建之后不能修改,分发 ID 等同于项目 ID"
+              @search="
+                () => {
+                  this.temp = { ...this.temp, id: randomStr(6) };
+                }
+              "
+            >
+              <template slot="enterButton">
+                <a-button type="primary"> 随机生成 </a-button>
+              </template>
+            </a-input-search>
+          </template>
+          <!-- <a-input v-model="temp.id" :maxLength="50" :disabled="temp.type === 'edit'" placeholder="创建之后不能修改,分发 ID 等同于项目 ID" /> -->
         </a-form-model-item>
-        <a-form-model-item label="项目名称" prop="name">
-          <a-input v-model="temp.name" :maxLength="50" placeholder="项目名称" />
+        <a-form-model-item label="分发名称" prop="name">
+          <a-row>
+            <a-col :span="10">
+              <a-input v-model="temp.name" :maxLength="50" placeholder="分发名称（项目名称）" />
+            </a-col>
+            <a-col :span="4" style="text-align: right">分组名称：</a-col>
+            <a-col :span="10">
+              <custom-select suffixIcon="" :maxLength="50" v-model="temp.group" :data="groupList" inputPlaceholder="添加分组" selectPlaceholder="选择分组"> </custom-select>
+            </a-col>
+          </a-row>
         </a-form-model-item>
 
         <a-form-model-item prop="runMode">
@@ -283,15 +358,7 @@
               <a-icon type="question-circle" theme="filled" />
             </a-tooltip>
           </template>
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            v-model="temp.runMode"
-            placeholder="请选择运行方式"
-          >
+          <a-select v-model="temp.runMode" placeholder="请选择运行方式">
             <a-select-option v-for="runMode in runModeList" :key="runMode">{{ runMode }}</a-select-option>
           </a-select>
         </a-form-model-item>
@@ -312,17 +379,12 @@
             </a-tooltip>
           </template>
           <a-input-group compact>
-            <a-select
-              :getPopupContainer="
-                (triggerNode) => {
-                  return triggerNode.parentNode || document.body;
-                }
-              "
-              style="width: 50%"
-              v-model="temp.whitelistDirectory"
-              placeholder="请选择项目白名单路径"
-            >
-              <a-select-option v-for="access in accessList" :key="access">{{ access }}</a-select-option>
+            <a-select style="width: 50%" v-model="temp.whitelistDirectory" placeholder="请选择项目白名单路径">
+              <a-select-option v-for="access in accessList" :key="access">
+                <a-tooltip :title="access">
+                  {{ access }}
+                </a-tooltip>
+              </a-select-option>
             </a-select>
             <a-input style="width: 50%" v-model="temp.lib" placeholder="项目存储的文件夹，jar 包存放的文件夹" />
           </a-input-group>
@@ -382,15 +444,7 @@
               <a-icon type="question-circle" theme="filled" />
             </a-tooltip>
           </template>
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            v-model="temp.logPath"
-            placeholder="请选择日志目录"
-          >
+          <a-select v-model="temp.logPath" placeholder="请选择日志目录">
             <a-select-option key="" value="">默认是在项目文件夹父级</a-select-option>
             <a-select-option v-for="access in accessList" :key="access">{{ access }}</a-select-option>
           </a-select>
@@ -402,19 +456,11 @@
           <a-input v-model="temp.javaExtDirsCp" placeholder="-Dext.dirs=xxx: -cp xx  填写【xxx:xx】" />
         </a-form-model-item>
         <a-form-model-item label="分发后操作" prop="afterOpt">
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            v-model="temp.afterOpt"
-            placeholder="请选择发布后操作"
-          >
+          <a-select v-model="temp.afterOpt" placeholder="请选择发布后操作">
             <a-select-option v-for="item in afterOptList" :key="item.value">{{ item.title }}</a-select-option>
           </a-select>
         </a-form-model-item>
-        <a-form-model-item prop="intervalTime">
+        <a-form-model-item prop="intervalTime" v-if="temp.afterOpt === 2 || temp.afterOpt === 3">
           <template slot="label">
             间隔时间
             <a-tooltip v-show="temp.type !== 'edit'">
@@ -427,28 +473,36 @@
           </template>
           <a-input-number :min="0" v-model="temp.intervalTime" placeholder="分发间隔时间 （顺序重启、完整顺序重启）方式才生效" style="width: 100%" />
         </a-form-model-item>
+        <a-form-model-item prop="secondaryDirectory" label="二级目录">
+          <a-input v-model="temp.secondaryDirectory" placeholder="不填写则发布至项目的根目录" />
+        </a-form-model-item>
         <a-form-model-item prop="clearOld">
           <template slot="label">
             清空发布
-            <a-tooltip v-show="temp.type !== 'edit'">
+            <a-tooltip v-if="temp.type !== 'edit'">
               <template slot="title"> 清空发布是指在上传新文件前,会将项目文件夹目录里面的所有文件先删除后再保存新文件 </template>
               <a-icon type="question-circle" theme="filled" />
             </a-tooltip>
           </template>
-          <a-switch v-model="temp.clearOld" checked-children="是" un-checked-children="否" />
+          <a-row>
+            <a-col :span="4">
+              <a-switch v-model="temp.clearOld" checked-children="是" un-checked-children="否" />
+            </a-col>
+            <a-col :span="4" style="text-align: right">
+              <a-tooltip v-if="temp.type !== 'edit'">
+                <template slot="title"> 发布前停止是指在发布文件到项目文件时先将项目关闭，再进行文件替换。避免 windows 环境下出现文件被占用的情况 </template>
+                <a-icon type="question-circle" theme="filled" />
+              </a-tooltip>
+              发布前停止：
+            </a-col>
+            <a-col :span="4">
+              <a-switch v-model="temp.uploadCloseFirst" checked-children="是" un-checked-children="否" />
+            </a-col>
+          </a-row>
         </a-form-model-item>
         <!-- 节点 -->
         <a-form-model-item label="分发节点" prop="nodeId">
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            v-model="temp.nodeIdList"
-            mode="multiple"
-            placeholder="请选择分发节点"
-          >
+          <a-select show-search option-filter-prop="children" v-model="temp.nodeIdList" mode="multiple" placeholder="请选择分发节点">
             <a-select-option v-for="node in nodeList" :key="node.id">{{ `${node.name}` }}</a-select-option>
           </a-select>
         </a-form-model-item>
@@ -477,7 +531,7 @@
                   <template slot="title">
                     <ul>
                       <li>项目启动,停止,重启都将请求对应的地址</li>
-                      <li>传人参数有：projectId、projectName、type、copyId、result</li>
+                      <li>传入参数有：projectId、projectName、type、copyId、result</li>
                       <li>type 的值有：stop、beforeStop、start、beforeRestart</li>
                     </ul>
                   </template>
@@ -536,24 +590,62 @@
             </div>
           </a-collapse-panel>
         </a-collapse>
+        <a-form-model-item prop="webhook">
+          <template slot="label">
+            WebHooks
+            <a-tooltip v-show="!temp.id">
+              <template slot="title">
+                <ul>
+                  <li>分发过程请求对应的地址,开始分发,分发完成,分发失败,取消分发</li>
+                  <li>传入参数有：outGivingId、outGivingName、status、statusMsg、executeTime</li>
+                  <li>status 的值有：1:分发中、2：分发结束、3：已取消、4：分发失败</li>
+                  <li>异步请求不能保证有序性</li>
+                </ul>
+              </template>
+              <a-icon type="question-circle" theme="filled" />
+            </a-tooltip>
+          </template>
+          <a-input v-model="temp.webhook" placeholder="分发过程请求,非必填，GET请求" />
+        </a-form-model-item>
       </a-form-model>
     </a-modal>
     <!-- 分发项目 -->
-    <a-modal v-model="dispatchVisible" width="600px" :title="'分发项目----' + temp.name" @ok="handleDispatchOk" :maskClosable="false">
-      <a-form-model ref="dispatchForm" :rules="rules" :model="temp" :label-col="{ span: 6 }" :wrapper-col="{ span: 18 }">
+    <a-modal
+      destroyOnClose
+      v-model="dispatchVisible"
+      :closable="!uploading"
+      :footer="uploading ? null : undefined"
+      width="50%"
+      :keyboard="false"
+      :title="'分发项目-' + temp.name"
+      @ok="handleDispatchOk"
+      :maskClosable="false"
+    >
+      <a-form-model ref="dispatchForm" :rules="rules" :model="temp" :label-col="{ span: 4 }" :wrapper-col="{ span: 20 }">
         <a-form-model-item label="方式" prop="type">
-          <a-radio-group v-model="temp.type" name="type">
+          <a-radio-group v-model="temp.type" name="type" :disabled="!!percentage">
             <a-radio :value="'upload'">上传文件</a-radio>
             <a-radio :value="'download'">远程下载</a-radio>
           </a-radio-group>
         </a-form-model-item>
-        <a-form-model-item label="选择分发文件" prop="clearOld" v-if="temp.type == 'upload'">
+
+        <a-form-model-item label="选择分发文件" prop="clearOld" v-if="temp.type === 'upload'">
           <!-- accept=".zip,.tar,.gz,.bz2" -->
-          <a-upload :file-list="fileList" :remove="handleRemove" :before-upload="beforeUpload">
-            <a-button type="primary"><a-icon type="upload" />选择文件上传</a-button>
+
+          <a-progress v-if="percentage" :percent="percentage">
+            <template #format="percent">
+              {{ percent }}%
+              <template v-if="percentageInfo.total"> ({{ renderSize(percentageInfo.total) }}) </template>
+              <template v-if="percentageInfo.duration"> 用时:{{ formatDuration(percentageInfo.duration) }} </template>
+            </template>
+          </a-progress>
+
+          <a-upload :file-list="fileList" :disabled="!!percentage" :remove="handleRemove" :before-upload="beforeUpload">
+            <a-icon type="loading" v-if="percentage" />
+            <a-button v-else type="primary" icon="upload">选择文件上传</a-button>
           </a-upload>
         </a-form-model-item>
-        <a-form-model-item label="远程下载URL" prop="url" v-if="temp.type == 'download'">
+        <a-form-model-item label="远程下载URL" prop="url" v-if="temp.type === 'download'">
           <a-input v-model="temp.url" placeholder="远程下载地址" />
         </a-form-model-item>
         <!-- <a-form-model-item label="是否为压缩包" v-if="temp.type == 'download'">
@@ -579,34 +671,80 @@
           </template>
           <a-switch v-model="temp.autoUnzip" checked-children="是" un-checked-children="否" />
         </a-form-model-item>
+        <a-form-model-item label="剔除文件夹" v-if="temp.autoUnzip">
+          <a-input-number style="width: 100%" v-model="temp.stripComponents" :min="0" placeholder="解压时候自动剔除压缩包里面多余的文件夹名" />
+        </a-form-model-item>
+
         <a-form-model-item label="分发后操作" prop="afterOpt">
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            v-model="temp.afterOpt"
-            placeholder="请选择发布后操作"
-          >
+          <a-select v-model="temp.afterOpt" placeholder="请选择发布后操作">
             <a-select-option v-for="item in afterOptList" :key="item.value">{{ item.title }}</a-select-option>
+          </a-select>
+        </a-form-model-item>
+        <a-form-model-item prop="secondaryDirectory" label="二级目录">
+          <a-input v-model="temp.secondaryDirectory" placeholder="不填写则发布至项目的根目录" />
+        </a-form-model-item>
+        <a-form-model-item prop="selectProject" label="筛选项目" help="筛选之后本次发布操作只发布筛选项,并且只对本次操作生效">
+          <a-select mode="multiple" v-model="temp.selectProjectArray" placeholder="请选择指定发布的项目">
+            <a-select-option v-for="item in itemProjectList" :key="item.id" :value="`${item.projectId}@${item.nodeId}`">
+              {{ item.nodeName }}-{{ item.cacheProjectName || item.projectId }}
+            </a-select-option>
           </a-select>
         </a-form-model-item>
       </a-form-model>
     </a-modal>
-    <!-- 项目文件组件 -->
-    <a-drawer :title="drawerTitle" placement="right" width="85vw" :visible="drawerFileVisible" @close="onFileClose">
-      <file v-if="drawerFileVisible" :id="temp.id" :nodeId="temp.nodeId" :projectId="temp.projectId" @goConsole="goConsole" />
-    </a-drawer>
-    <!-- 项目控制台组件 -->
-    <a-drawer :title="drawerTitle" placement="right" width="85vw" :visible="drawerConsoleVisible" @close="onConsoleClose">
-      <console v-if="drawerConsoleVisible" :id="temp.id" :nodeId="temp.nodeId" :projectId="temp.projectId" @goFile="goFile" />
+
+    <!-- 配置分发 -->
+    <a-modal destroyOnClose v-model="viewDispatchManager" width="50%" :title="`配置分发`" @ok="viewDispatchManagerOk" :maskClosable="false">
+      <draggable v-model="temp.dispatchManagerList" :group="`sortValue`" handle=".move" chosenClass="box-shadow">
+        <a-row v-for="item in temp.dispatchManagerList" :key="item.id" class="item-row">
+          <a-col :span="18">
+            <span> 节点名： {{ item.nodeName }} </span>
+            <span> 项目名： {{ item.cacheProjectName }} </span>
+          </a-col>
+          <a-col :span="6">
+            <a-space>
+              <a-switch
+                checked-children="启用"
+                un-checked-children="禁用"
+                :checked="item.disabled ? false : true"
+                @change="
+                  (checked) => {
+                    temp.dispatchManagerList = temp.dispatchManagerList.map((item2) => {
+                      if (item.id === item2.id) {
+                        item2.disabled = !checked;
+                      }
+                      return { ...item2 };
+                    });
+                  }
+                "
+              />
+
+              <a-button type="danger" size="small" @click="handleRemoveProject(item)" :disabled="!temp || !temp.dispatchManagerList || temp.dispatchManagerList.length <= 1"> 解绑 </a-button>
+              <a-tooltip placement="left" :title="`长按可以拖动排序`" class="move"> <a-icon type="menu" /> </a-tooltip>
+            </a-space>
+          </a-col>
+        </a-row>
+      </draggable>
+    </a-modal>
+    <!-- 分发状态 -->
+    <a-drawer
+      destroyOnClose
+      :title="`查看 ${temp.name} 状态`"
+      placement="right"
+      width="85vw"
+      :visible="drawerStatusVisible"
+      @close="
+        () => {
+          this.drawerStatusVisible = false;
+        }
+      "
+    >
+      <Status v-if="drawerStatusVisible" :id="temp.id" />
     </a-drawer>
   </div>
 </template>
 <script>
-import File from "@/pages/node/node-layout/project/project-file";
-import Console from "@/pages/node/node-layout/project/project-console";
+import Status from "./status";
 import codeEditor from "@/components/codeEditor";
 import {
   afterOptList,
@@ -621,78 +759,88 @@ import {
   statusMap,
   unbindOutgiving,
   uploadDispatchFile,
+  dispatchStatusMap,
+  cancelOutgiving,
+  uploadDispatchFileMerge,
+  saveDispatchProjectConfig,
+  removeProject,
 } from "@/api/dispatch";
-import {getNodeListAll, getProjectListAll} from "@/api/node";
-import {getProjectData, javaModes, noFileModes, runModeList} from "@/api/node-project";
-import {itemGroupBy, parseTime} from "@/utils/time";
-import {CHANGE_PAGE, COMPUTED_PAGINATION, PAGE_DEFAULT_LIST_QUERY, PROJECT_DSL_DEFATUL} from "@/utils/const";
+import { getNodeListAll, getProjectListAll } from "@/api/node";
+import { getProjectData, javaModes, noFileModes, runModeList, getProjectGroupAll } from "@/api/node-project";
+import { CHANGE_PAGE, COMPUTED_PAGINATION, PAGE_DEFAULT_LIST_QUERY, PROJECT_DSL_DEFATUL, randomStr, itemGroupBy, parseTime, renderSize, formatDuration } from "@/utils/const";
+
+import { uploadPieces } from "@/utils/upload-pieces";
+import CustomSelect from "@/components/customSelect";
+import draggable from "vuedraggable";
 
 export default {
   components: {
-    File,
-    Console,
     codeEditor,
+    CustomSelect,
+    draggable,
+    Status,
   },
   data() {
     return {
       loading: false,
-      childLoading: false,
+
       listQuery: Object.assign({}, PAGE_DEFAULT_LIST_QUERY),
       statusMap: statusMap,
       javaModes: javaModes,
       noFileModes: noFileModes,
+      dispatchStatusMap,
       PROJECT_DSL_DEFATUL,
       list: [],
       accessList: [],
       nodeList: [],
       projectList: [],
+      groupList: [],
       afterOptList,
       targetKeys: [],
       // reqId: "",
       temp: {},
       fileList: [],
       runModeList: runModeList,
-      list_expanded: {},
+
       linkDispatchVisible: false,
       editDispatchVisible: false,
       dispatchVisible: false,
-      drawerTitle: "",
-      drawerFileVisible: false,
-      drawerConsoleVisible: false,
-      nodeNameList: [],
+
+      nodeProjectsList: [],
       nodeNameMap: {},
+      nodeIdMap: {},
       dispatchList: [],
       totalProjectNum: 0,
       columns: [
-        { title: "分发 ID", dataIndex: "id", ellipsis: true, scopedSlots: { customRender: "id" } },
-        { title: "分发名称", dataIndex: "name", ellipsis: true, scopedSlots: { customRender: "name" } },
-        { title: "类型", dataIndex: "outGivingProject", width: 90, ellipsis: true, scopedSlots: { customRender: "outGivingProject" } },
-        { title: "分发后", dataIndex: "afterOpt", ellipsis: true, width: 100, scopedSlots: { customRender: "afterOpt" } },
-        { title: "清空发布", dataIndex: "clearOld", align: "center", ellipsis: true, width: 100, scopedSlots: { customRender: "clearOld" } },
+        { title: "分发 ID", dataIndex: "id", ellipsis: true, width: 110, scopedSlots: { customRender: "tooltip" } },
+        { title: "分发名称", dataIndex: "name", ellipsis: true, width: 200, scopedSlots: { customRender: "name" } },
+        { title: "项目分组", dataIndex: "group", sorter: true, width: "100px", ellipsis: true, scopedSlots: { customRender: "group" } },
+        { title: "分发类型", dataIndex: "outGivingProject", width: "90px", ellipsis: true, scopedSlots: { customRender: "outGivingProject" } },
+        { title: "分发后", dataIndex: "afterOpt", ellipsis: true, width: "150px", scopedSlots: { customRender: "afterOpt" } },
+        { title: "清空发布", dataIndex: "clearOld", align: "center", ellipsis: true, width: "100px", scopedSlots: { customRender: "clearOld" } },
         { title: "间隔时间", dataIndex: "intervalTime", width: 90, ellipsis: true, scopedSlots: { customRender: "intervalTime" } },
 
         { title: "状态", dataIndex: "status", ellipsis: true, width: 110, scopedSlots: { customRender: "status" } },
+        { title: "二级目录", dataIndex: "secondaryDirectory", ellipsis: true, width: 110, scopedSlots: { customRender: "tooltip" } },
+        {
+          title: "创建时间",
+          dataIndex: "createTimeMillis",
+          ellipsis: true,
+          sorter: true,
+          customRender: (text) => parseTime(text),
+          width: "170px",
+        },
         {
           title: "修改时间",
           dataIndex: "modifyTimeMillis",
           ellipsis: true,
           sorter: true,
-          customRender: (text) => {
-            return parseTime(text);
-          },
-          width: 170,
+          customRender: (text) => parseTime(text),
+          width: "170px",
         },
-        { title: "操作", dataIndex: "operation", scopedSlots: { customRender: "operation" }, width: 210, align: "center" },
+        { title: "操作", dataIndex: "operation", scopedSlots: { customRender: "operation" }, fixed: "right", width: "200px", align: "center" },
       ],
-      childColumns: [
-        { title: "节点名称", dataIndex: "nodeId", ellipsis: true, scopedSlots: { customRender: "nodeId" } },
-        { title: "项目名称", dataIndex: "projectName", ellipsis: true, scopedSlots: { customRender: "projectName" } },
-        { title: "项目状态", dataIndex: "projectStatus", width: 120, ellipsis: true, scopedSlots: { customRender: "projectStatus" } },
-        { title: "分发状态", dataIndex: "outGivingStatus", width: 120 },
-        { title: "分发结果", dataIndex: "outGivingResult", ellipsis: true, scopedSlots: { customRender: "outGivingResult" } },
-        { title: "最后分发时间", dataIndex: "lastTime", width: 180, ellipsis: true, scopedSlots: { customRender: "lastTime" } },
-        { title: "操作", dataIndex: "child-operation", scopedSlots: { customRender: "child-operation" }, width: 120, align: "center" },
-      ],
+
       rules: {
         id: [{ required: true, message: "请输入项目ID", trigger: "blur" }],
         name: [{ required: true, message: "请输入项目名称", trigger: "blur" }],
@@ -703,6 +851,16 @@ export default {
         afterOpt: [{ required: true, message: "请选择发布后操作", trigger: "blur" }],
         url: [{ required: true, message: "请输入远程地址", trigger: "blur" }],
       },
+      countdownTime: Date.now(),
+      refreshInterval: 5,
+
+      percentage: 0,
+      percentageInfo: {},
+      uploading: false,
+      itemProjectList: [],
+      viewDispatchManager: false,
+
+      drawerStatusVisible: false,
     };
   },
   computed: {
@@ -718,8 +876,13 @@ export default {
   created() {
     this.loadData();
     this.loadNodeList();
+    this.loadGroupList();
   },
   methods: {
+    renderSize,
+    formatDuration,
+    randomStr,
+    CHANGE_PAGE,
     // 页面引导
     introGuide() {
       this.$store.dispatch("tryOpenGuide", {
@@ -736,19 +899,41 @@ export default {
         },
       });
     },
-
-    // 加载数据
-    loadData(pointerEvent) {
-      this.list = [];
-      this.listQuery.page = pointerEvent?.altKey || pointerEvent?.ctrlKey ? 1 : this.listQuery.page;
-      this.loading = true;
-      this.childLoading = false;
-      getDishPatchList(this.listQuery).then((res) => {
+    // 静默
+    silenceLoadData() {
+      if (this.$attrs.routerUrl !== this.$route.path) {
+        // 重新计算倒计时
+        this.countdownTime = Date.now() + this.refreshInterval * 1000;
+        return;
+      }
+      getDishPatchList(this.listQuery, false).then((res) => {
         if (res.code === 200) {
           this.list = res.data.result;
           this.listQuery.total = res.data.total;
+          //
+
+          // 重新计算倒计时
+          this.countdownTime = Date.now() + this.refreshInterval * 1000;
         }
-        this.loading = false;
+      });
+    },
+    // 加载数据
+    loadData(pointerEvent) {
+      return new Promise((resolve) => {
+        this.listQuery.page = pointerEvent?.altKey || pointerEvent?.ctrlKey ? 1 : this.listQuery.page;
+        this.loading = true;
+
+        // = false;
+        getDishPatchList(this.listQuery).then((res) => {
+          if (res.code === 200) {
+            this.list = res.data.result;
+            this.listQuery.total = res.data.total;
+            // 重新计算倒计时
+            this.countdownTime = Date.now() + this.refreshInterval * 1000;
+          }
+          this.loading = false;
+          resolve();
+        });
       });
     },
     // 加载项目白名单列表
@@ -759,14 +944,14 @@ export default {
         }
       });
     },
-    // 展开行
-    expand(expanded, record) {
-      this.list_expanded[record.id] = expanded;
-      this.list_expanded = { ...this.list_expanded };
-      if (expanded) {
-        this.handleReload(record);
-      }
+    loadGroupList() {
+      getProjectGroupAll().then((res) => {
+        if (res.data) {
+          this.groupList = res.data;
+        }
+      });
     },
+
     // 关联分发
     handleLink() {
       this.$refs["linkDispatchForm"] && this.$refs["linkDispatchForm"].resetFields();
@@ -790,25 +975,15 @@ export default {
         this.loadProjectListAll(() => {
           //分发节点重新渲染
           this.temp = {};
-          JSON.parse(record.outGivingNodeProjectList).forEach((ele, eleIndex) => {
-            let index = "";
-            let projects = [];
-            this.nodeNameList.forEach((item, idx) => {
-              if (item.id === ele.nodeId) {
-                index = idx;
-                projects = item.projects;
-                item.openStatus = false;
-              }
-            });
-            this.temp[`node_${ele.nodeId}_${eleIndex}`] = ele.projectId;
+          this.dispatchList = [];
+          JSON.parse(record.outGivingNodeProjectList).forEach((ele) => {
             this.dispatchList.push({
               nodeId: ele.nodeId,
               projectId: ele.projectId,
-              index: index,
-              project: projects,
-              status: true,
+              index: this.dispatchList.length,
+              // project: this.nodeProjectsList.filter((item) => item.id === ele.nodeId)[0].projects,
             });
-            // console.log(ele, eleIndex);
+            // console.log(this.dispatchList);
           });
           this.temp = { ...this.temp };
 
@@ -821,6 +996,10 @@ export default {
             id: record.id,
             intervalTime: record.intervalTime,
             clearOld: record.clearOld,
+            secondaryDirectory: record.secondaryDirectory || "",
+            uploadCloseFirst: record.uploadCloseFirst,
+            group: record.group,
+            webhook: record.webhook,
           };
           // console.log(this.temp);
           this.linkDispatchVisible = true;
@@ -857,13 +1036,13 @@ export default {
           return false;
         }
         // 校验分发节点数据
-        if (this.dispatchList.length === 0) {
-          this.$notification.error({ message: "请添加分发节点!" });
-          return false;
-        } else if (this.dispatchList.length < 2) {
-          this.$notification.error({ message: "至少选择2个节点项目" });
+        if (this.dispatchList.length < 1) {
+          this.$notification.error({ message: "至少选择1个节点项目" });
           return false;
         }
+        this.dispatchList.forEach((item, index) => {
+          this.temp["node_" + item.nodeId + "_" + index] = item.projectId;
+        });
 
         // 提交
         editDispatch(this.temp).then((res) => {
@@ -905,6 +1084,7 @@ export default {
           this.temp[`${node.id}_javaCopyItemList`] = [];
         });
         this.loadAccesList();
+        this.loadGroupList();
 
         this.editDispatchVisible = true;
         this.$nextTick(() => {
@@ -948,6 +1128,10 @@ export default {
                 nodeIdList: [],
                 intervalTime: record.intervalTime,
                 clearOld: record.clearOld,
+                secondaryDirectory: record.secondaryDirectory,
+                uploadCloseFirst: record.uploadCloseFirst,
+                group: record.group,
+                webhook: record.webhook,
               };
             }
             // 添加 nodeIdList
@@ -966,19 +1150,14 @@ export default {
 
         // 加载其他数据
         this.loadAccesList();
+        this.loadGroupList();
 
         this.editDispatchVisible = true;
       });
     },
     // 添加副本
     handleAddReplica(nodeId) {
-      const $chars = "ABCDEFGHJKMNPQRSTWXYZ0123456789";
-      /****默认去掉了容易混淆的字符oOLl,9gq,Vv,Uu,I1****/
-      const maxPos = $chars.length;
-      let repliccaId = "";
-      for (let i = 0; i < 2; i++) {
-        repliccaId += $chars.charAt(Math.floor(Math.random() * maxPos));
-      }
+      let repliccaId = randomStr();
       this.temp[`${nodeId}_javaCopyItemList`].push({
         id: repliccaId,
         jvm: "",
@@ -1004,9 +1183,9 @@ export default {
         }
         const tempData = Object.assign({}, this.temp);
         // 检查
-        if (tempData.nodeIdList.length < 2) {
+        if (tempData.nodeIdList.length < 1) {
           this.$notification.warn({
-            message: "请至少选择 2 个节点",
+            message: "请至少选择 1 个节点",
           });
           return false;
         }
@@ -1050,21 +1229,21 @@ export default {
         });
       });
     },
-    // 刷新
-    handleReload(record) {
-      this.childLoading = true;
-      getDispatchProject(record.id).then((res) => {
-        if (res.code === 200) {
-          record.children = res.data;
-        }
-        this.childLoading = false;
-      });
-    },
+
     // 处理分发
     handleDispatch(record) {
-      this.temp = Object.assign({ type: "upload" }, record);
-      this.dispatchVisible = true;
-      this.$refs["dispatchForm"] && this.$refs["dispatchForm"].resetFields();
+      getDispatchProject(record.id, true).then((res) => {
+        if (res.code === 200) {
+          this.itemProjectList = res.data?.projectList;
+          // itemProjectList
+          this.temp = Object.assign({ type: "upload" }, record);
+          this.dispatchVisible = true;
+          this.percentage = 0;
+          this.percentageInfo = {};
+          this.fileList = [];
+          this.$refs["dispatchForm"] && this.$refs["dispatchForm"].resetFields();
+        }
+      });
     },
     // 处理文件移除
     handleRemove(file) {
@@ -1081,6 +1260,8 @@ export default {
     },
     // 提交分发文件
     handleDispatchOk() {
+      // console.log(this.temp);
+      this.temp = { ...this.temp, selectProject: (this.temp.selectProjectArray && this.temp.selectProjectArray.join(",")) || "" };
       // 检验表单
       this.$refs["dispatchForm"].validate((valid) => {
         if (!valid) {
@@ -1095,26 +1276,70 @@ export default {
             });
             return false;
           }
-          // 上传文件
-          const formData = new FormData();
-          //this.$message.loading({ content: "正在上传文件...", key, duration: 0 });
-          formData.append("file", this.fileList[0]);
-          formData.append("id", this.temp.id);
-          formData.append("afterOpt", this.temp.afterOpt);
-          formData.append("clearOld", this.temp.clearOld);
-          formData.append("autoUnzip", this.temp.autoUnzip);
-          uploadDispatchFile(formData).then((res) => {
-            if (res.code === 200) {
-              this.$notification.success({
-                message: res.msg,
+          this.percentage = 0;
+          this.percentageInfo = {};
+          let file = this.fileList[0];
+          this.uploading = true;
+          uploadPieces({
+            file,
+            process: (process, end, total, duration) => {
+              this.percentage = Math.max(this.percentage, process);
+              this.percentageInfo = { end, total, duration };
+            },
+            success: (uploadData) => {
+              // 准备合并
+              uploadDispatchFileMerge({
+                ...uploadData[0],
+                id: this.temp.id,
+                afterOpt: this.temp.afterOpt,
+                clearOld: this.temp.clearOld,
+                autoUnzip: this.temp.autoUnzip,
+                secondaryDirectory: this.temp.secondaryDirectory || "",
+                stripComponents: this.temp.stripComponents || 0,
+                selectProject: this.temp.selectProject,
+              })
+                .then((res) => {
+                  if (res.code === 200) {
+                    this.fileList = [];
+                    this.loadData();
+                    this.dispatchVisible = false;
+                    this.$refs["dispatchForm"].resetFields();
+                  }
+                  setTimeout(() => {
+                    this.percentage = 0;
+                    this.percentageInfo = {};
+                  }, 2000);
+                  this.uploading = false;
+                })
+                .catch(() => {
+                  this.uploading = false;
+                });
+            },
+            error: (msg) => {
+              this.$notification.error({
+                message: msg,
               });
-              // this.$message.success({ content: "上传成功,开始分发!", key });
-              this.fileList = [];
-              this.loadData();
-              this.dispatchVisible = false;
-              this.$refs["dispatchForm"].resetFields();
-            }
+              this.uploading = false;
+            },
+            uploadCallback: (formData) => {
+              return new Promise((resolve, reject) => {
+                formData.append("id", this.temp.id);
+                // 上传文件
+                uploadDispatchFile(formData)
+                  .then((res) => {
+                    if (res.code === 200) {
+                      resolve();
+                    } else {
+                      reject();
+                    }
+                  })
+                  .catch(() => {
+                    reject();
+                  });
+              });
+            },
           });
+
           return true;
         }
         if (this.temp.type == "download") {
@@ -1145,20 +1370,23 @@ export default {
       });
     },
     // 删除
-    handleDelete(record) {
+    handleDelete(record, thorough) {
       if (record.outGivingProject) {
         this.$confirm({
           title: "系统提示",
-          content: "真的要删除分发信息么？删除后节点下面的项目也都将删除",
+          content: thorough
+            ? "真的要彻底删除分发信息么？删除后节点下面的项目也都将彻底删除，彻底项目会自动删除项目相关文件奥(包含项目日志，日志备份，项目文件)"
+            : "真的要删除分发信息么？删除后节点下面的项目也都将删除",
           okText: "确认",
           cancelText: "取消",
           onOk: () => {
             // 删除
-            delDisPatchProject(record.id).then((res) => {
+            delDisPatchProject({ id: record.id, thorough: thorough }).then((res) => {
               if (res.code === 200) {
                 this.$notification.success({
                   message: res.msg,
                 });
+
                 this.loadData();
               }
             });
@@ -1178,6 +1406,7 @@ export default {
               this.$notification.success({
                 message: res.msg,
               });
+
               this.loadData();
             }
           });
@@ -1186,9 +1415,20 @@ export default {
     },
     // 解绑
     handleUnbind(record) {
+      const html =
+        "<b style='font-size: 20px;'>真的要解绑当前节点分发么？</b>" +
+        "<ul style='font-size: 20px;color:red;font-weight: bold;'>" +
+        "<li>解绑会检查数据关联性,不会真实请求节点删除项目信息</b></li>" +
+        "<li>一般用于服务器无法连接且已经确定不再使用</li>" +
+        "<li>如果误操作会产生冗余数据！！！</li>" +
+        " </ul>";
+
+      const h = this.$createElement;
       this.$confirm({
-        title: "系统提示",
-        content: "真的要解绑节点么？解绑会检查数据关联性,不会真实请求节点解绑,一般用于服务器无法连接且已经确定不再使用。如果误操作可能冗余数据",
+        title: "危险操作！！！",
+        content: h("div", null, [h("p", { domProps: { innerHTML: html } }, null)]),
+        okButtonProps: { props: { type: "danger", size: "small" } },
+        cancelButtonProps: { props: { type: "primary" } },
         okText: "确认",
         cancelText: "取消",
         onOk: () => {
@@ -1198,58 +1438,21 @@ export default {
               this.$notification.success({
                 message: res.msg,
               });
+
               this.loadData();
             }
           });
         },
       });
     },
-    // 文件管理
-    handleFile(record) {
-      this.temp = Object.assign({}, record);
-      this.drawerTitle = `文件管理(${this.temp.projectId})`;
-      this.drawerFileVisible = true;
-    },
-    // 关闭文件管理对话框
-    onFileClose() {
-      this.drawerFileVisible = false;
-    },
-    // 控制台
-    handleConsole(record) {
-      this.temp = Object.assign({}, record);
-      this.drawerTitle = `控制台(${this.temp.projectId})`;
-      this.drawerConsoleVisible = true;
-    },
-    // 关闭控制台
-    onConsoleClose() {
-      this.drawerConsoleVisible = false;
-    },
-    //前往控制台
-    goConsole() {
-      //关闭文件
-      this.onFileClose();
-      this.handleConsole(this.temp);
-    },
-    //前往文件
-    goFile() {
-      // 关闭控制台
-      this.onConsoleClose();
-      this.handleFile(this.temp);
-    },
+
     loadProjectListAll(fn) {
       getProjectListAll().then((res) => {
         if (res.code === 200) {
           this.totalProjectNum = res.data ? res.data.length : 0;
-          this.nodeNameList = itemGroupBy(res.data, "nodeId", "id", "projects");
-          this.nodeNameList = this.nodeNameList.map((item) => {
-            item.nodeData = this.nodeList.filter((node) => node.id === item.id)[0];
-            return item;
-          });
-          // .filter((item) => {
-          //   return item.nodeData;
-          // });
+          this.nodeProjectsList = itemGroupBy(res.data, "nodeId", "id", "projects");
+          // console.log(this.nodeProjectsList);
           fn && fn();
-          // console.log(this.nodeNameList);
         }
       });
     },
@@ -1261,30 +1464,27 @@ export default {
           this.nodeList = res.data;
           this.nodeList.map((item) => {
             this.nodeNameMap[item.id] = item.name;
+            this.nodeIdMap[item.id] = item;
           });
           fn && fn();
         }
       });
     },
     // 选择节点
-    handleNodeListChange(value, index) {
-      if (this.nodeNameList[value].projects.length === 0) {
+    handleNodeListChange(nodeId, index) {
+      const nodeData = this.nodeProjectsList.filter((item) => item.id === nodeId)[0];
+      if (nodeData.projects.length === 0) {
         this.dispatchList[index].placeholder = "此节点暂无项目";
         this.dispatchList[index].disabled = true;
       } else {
         this.dispatchList[index].placeholder = "请选择项目";
         this.dispatchList[index].disabled = false;
       }
-      //this.projectNameList = this.nodeNameList[value].projects;
-      this.nodeNameList[value].openStatus = false;
-      this.dispatchList[index].project = this.nodeNameList[value].projects;
-      this.dispatchList[index].nodeId = this.nodeNameList[value].id;
-      this.dispatchList[index].index = value;
+      this.dispatchList[index].nodeId = nodeId;
     },
     // 选择项目
     handleProjectChange(value, index) {
       this.dispatchList[index].projectId = value;
-      this.temp["node_" + this.dispatchList[index].nodeId + "_" + index] = value;
     },
     // 添加分发
     addDispachList() {
@@ -1294,28 +1494,113 @@ export default {
         });
         return false;
       }
-      this.dispatchList.push({ nodeId: "", projectId: "", index: "", project: [], status: true, placeholder: "请先选择节点", disabled: true });
+      this.dispatchList.push({ index: this.dispatchList.length, placeholder: "请先选择节点", disabled: true });
     },
     // 删除分发
     delDispachList(value) {
-      if (this.dispatchList[value].index !== "") {
-        this.nodeNameList[this.dispatchList[value].index].openStatus = true;
-      }
-      delete this.temp[`node_${this.dispatchList[value].nodeId}_${this.dispatchList[value].index}`];
-      this.dispatchList[value].status = false;
       this.dispatchList.splice(value, 1);
     },
     // 清理缓存
     clearDispatchList() {
       this.dispatchList = [];
-      for (let node in this.nodeNameList) {
-        this.nodeNameList[node].openStatus = true;
-      }
     },
-    // 分页、排序、筛选变化时触发
-    changePage(pagination, filters, sorter) {
-      this.listQuery = CHANGE_PAGE(this.listQuery, { pagination, sorter });
-      this.loadData();
+
+    // 取消
+    handleCancel(record) {
+      this.$confirm({
+        title: "系统提示",
+        content: "真的取消当前分发吗？",
+        okText: "确认",
+        cancelText: "取消",
+        onOk: () => {
+          // 删除
+          cancelOutgiving({ id: record.id }).then((res) => {
+            if (res.code === 200) {
+              this.$notification.success({
+                message: res.msg,
+              });
+              this.loadData();
+              this.silenceLoadData();
+            }
+          });
+        },
+      });
+    },
+    //分发管理
+    handleViewDispatchManager(record) {
+      this.handleViewDispatchManagerById(record.id);
+    },
+    handleViewDispatchManagerById(id) {
+      getDispatchProject(id, true).then((res) => {
+        if (res.code === 200) {
+          this.temp = {
+            dispatchManagerList: res.data?.projectList,
+            id: id,
+          };
+          this.viewDispatchManager = true;
+        }
+      });
+    },
+    viewDispatchManagerOk() {
+      // console.log(this.temp);
+      const temp = {
+        data: this.temp.dispatchManagerList.map((item, index) => {
+          return {
+            nodeId: item.nodeId,
+            projectId: item.projectId,
+            sortValue: index,
+            disabled: item.disabled,
+          };
+        }),
+        id: this.temp.id,
+      };
+      saveDispatchProjectConfig(temp).then((res) => {
+        if (res.code === 200) {
+          this.$notification.success({
+            message: res.msg,
+          });
+          this.viewDispatchManager = false;
+        }
+      });
+    },
+    // 删除项目
+    handleRemoveProject(item) {
+      const html =
+        "<b style='font-size: 20px;'>真的要释放(删除)当前项目么？</b>" +
+        "<ul style='font-size: 20px;color:red;font-weight: bold;'>" +
+        "<li>不会真实请求节点删除项目信息</b></li>" +
+        "<li>一般用于服务器无法连接且已经确定不再使用</li>" +
+        "<li>如果误操作会产生冗余数据！！！</li>" +
+        " </ul>";
+
+      const h = this.$createElement;
+      this.$confirm({
+        title: "危险操作！！！",
+        content: h("div", null, [h("p", { domProps: { innerHTML: html } }, null)]),
+        okButtonProps: { props: { type: "danger", size: "small" } },
+        cancelButtonProps: { props: { type: "primary" } },
+        okText: "确认",
+        cancelText: "取消",
+        onOk: () => {
+          removeProject({
+            nodeId: item.nodeId,
+            projectId: item.projectId,
+            id: this.temp.id,
+          }).then((res) => {
+            if (res.code === 200) {
+              this.$notification.success({
+                message: res.msg,
+              });
+              this.handleViewDispatchManagerById(this.temp.id);
+            }
+          });
+        },
+      });
+    },
+    // 查看项目状态
+    handleViewStatus(item) {
+      this.drawerStatusVisible = true;
+      this.temp = { ...item };
     },
   },
 };
@@ -1324,9 +1609,32 @@ export default {
 .replica-area {
   width: 80%;
 }
+/deep/ .ant-progress-text {
+  width: auto;
+}
 /* .replica-btn-del {
   position: absolute;
   right: 0;
   top: 74px;
 } */
+/deep/ .ant-statistic div {
+  display: inline-block;
+}
+
+/deep/ .ant-statistic-content-value,
+/deep/ .ant-statistic-content {
+  font-size: 16px;
+}
+
+.box-shadow {
+  box-shadow: 0 0 10px 5px rgba(223, 222, 222, 0.5);
+  border-radius: 5px;
+}
+
+.item-row {
+  padding: 10px;
+  margin: 5px;
+  border: 1px solid #e8e8e8;
+  border-radius: 2px;
+}
 </style>

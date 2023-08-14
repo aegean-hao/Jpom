@@ -30,6 +30,7 @@ import com.jcraft.jsch.Channel;
 import com.jcraft.jsch.ChannelExec;
 import com.jcraft.jsch.ChannelShell;
 import com.jcraft.jsch.Session;
+import org.junit.Test;
 
 import java.io.*;
 
@@ -117,5 +118,10 @@ public class TestSSh {
         System.out.println(exitStatus);
         channel.disconnect();
         session.disconnect();
+    }
+
+    @Test
+    public void test2() {
+
     }
 }

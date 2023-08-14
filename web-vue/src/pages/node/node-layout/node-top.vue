@@ -23,12 +23,15 @@
 </template>
 <script>
 import { nodeMonitorData } from "@/api/node";
-import { drawChart, generateNodeTopChart, generateNodeNetworkTimeChart } from "@/api/node-stat";
+import { drawChart, generateNodeTopChart, generateNodeNetworkTimeChart, generateNodeNetChart } from "@/api/node-stat";
 import moment from "moment";
 export default {
   components: {},
   props: {
     nodeId: {
+      type: String,
+    },
+    machineId: {
       type: String,
     },
     type: {
@@ -39,12 +42,16 @@ export default {
     return {
       timeRange: null,
       historyData: [],
+      historyChart: null,
     };
   },
   mounted() {
     this.handleFilter();
+    window.addEventListener("resize", this.resize);
   },
-  destroyed() {},
+  destroyed() {
+    window.removeEventListener("resize", this.resize);
+  },
   watch: {},
   methods: {
     moment,
@@ -52,18 +59,24 @@ export default {
     handleFilter() {
       const params = {
         nodeId: this.nodeId,
+        machineId: this.machineId,
         time: this.timeRange,
       };
       // 加载数据
       nodeMonitorData(params).then((res) => {
         if (res.code === 200) {
-          if (this.type === "networkTime") {
-            drawChart(res.data, "historyChart", generateNodeNetworkTimeChart);
+          if (this.type === "networkDelay") {
+            this.historyChart = drawChart(res.data, "historyChart", generateNodeNetworkTimeChart);
+          } else if (this.type === "network-stat") {
+            this.historyChart = drawChart(res.data, "historyChart", generateNodeNetChart);
           } else {
-            drawChart(res.data, "historyChart", generateNodeTopChart);
+            this.historyChart = drawChart(res.data, "historyChart", generateNodeTopChart);
           }
         }
       });
+    },
+    resize() {
+      this.historyChart?.resize();
     },
   },
 };

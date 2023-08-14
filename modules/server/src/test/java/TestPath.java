@@ -44,70 +44,76 @@ import java.util.List;
  */
 public class TestPath {
 
-	public static void main(String[] args) {
-		AntPathMatcher antPathMatcher = new AntPathMatcher();
-		System.out.println(antPathMatcher.match("/s/**/sss.html", "//s/s/s/sss.html"));
-		System.out.println(antPathMatcher.match("/s/*.html", "/s/sss.html"));
-		System.out.println(antPathMatcher.match("2.*", "2.5"));
-	}
+    public static void main(String[] args) {
+        AntPathMatcher antPathMatcher = new AntPathMatcher();
+        System.out.println(antPathMatcher.match("/s/**/sss.html", "//s/s/s/sss.html"));
+        System.out.println(antPathMatcher.match("/s/*.html", "/s/sss.html"));
+        System.out.println(antPathMatcher.match("2.*", "2.5"));
 
-	@Test
-	public void testSort() {
-		ArrayList<String> list = CollUtil.newArrayList("dev", "master", "v1.1", "v0.4", "v.1", "v3.5.2", "v3.6", "v3.5.3");
-		list.sort((o1, o2) -> VersionComparator.INSTANCE.compare(o2, o1));
-		list.forEach(System.out::println);
-	}
 
-	@Test
-	public void testFilePath() {
+//        StrUtil.similar()
+
+
+        System.out.println(antPathMatcher.matchStart("/s/**/sss.html", "/s"));
+    }
+
+    @Test
+    public void testSort() {
+        ArrayList<String> list = CollUtil.newArrayList("dev", "master", "v1.1", "v0.4", "v.1", "v3.5.2", "v3.6", "v3.5.3");
+        list.sort((o1, o2) -> VersionComparator.INSTANCE.compare(o2, o1));
+        list.forEach(System.out::println);
+    }
+
+    @Test
+    public void testFilePath() {
 //		List<File> strings = FileUtil.loopFiles("~/jpom");
 //		for (File string : strings) {
 //			System.out.println(string);
 //		}
-		AntPathMatcher antPathMatcher = new AntPathMatcher();
-		List<String> paths = new ArrayList<>();
-		File rootFile = FileUtil.file("~/jpom");
-		String matchStr = "/agent/**/log";
-		matchStr = FileUtil.normalize(StrUtil.SLASH + matchStr);
-		String finalMatchStr = matchStr;
-		FileUtil.walkFiles(rootFile.toPath(), new SimpleFileVisitor<Path>() {
-			@Override
-			public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-				return this.test(file);
-			}
+        AntPathMatcher antPathMatcher = new AntPathMatcher();
+        List<String> paths = new ArrayList<>();
+        File rootFile = FileUtil.file("~/jpom");
+        String matchStr = "/agent/**/log";
+        matchStr = FileUtil.normalize(StrUtil.SLASH + matchStr);
+        String finalMatchStr = matchStr;
+        FileUtil.walkFiles(rootFile.toPath(), new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                return this.test(file);
+            }
 
-			@Override
-			public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes exc) throws IOException {
-				return this.test(dir);
-			}
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes exc) throws IOException {
+                return this.test(dir);
+            }
 
-			private FileVisitResult test(Path path) {
-				String subPath = FileUtil.subPath(FileUtil.getAbsolutePath(rootFile), path.toFile());
-				subPath = FileUtil.normalize(StrUtil.SLASH + subPath);
-				if (antPathMatcher.match(finalMatchStr, subPath)) {
-					paths.add(subPath);
-					return FileVisitResult.TERMINATE;
-				}
-				return FileVisitResult.CONTINUE;
-			}
-		});
-		paths.forEach(System.out::println);
+            private FileVisitResult test(Path path) {
+                String subPath = FileUtil.subPath(FileUtil.getAbsolutePath(rootFile), path.toFile());
+                subPath = FileUtil.normalize(StrUtil.SLASH + subPath);
+                if (antPathMatcher.match(finalMatchStr, subPath)) {
+                    paths.add(subPath);
+                    return FileVisitResult.TERMINATE;
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        paths.forEach(System.out::println);
 
-		//
-		//System.out.println(antPathMatcher.isPattern("sdfsadf"));
-		//Optional<String> first = paths.stream().filter(s -> antPathMatcher.match("agent/**/log", s)).findFirst();
-		//System.out.println(first.get());
-	}
+        //
+        //System.out.println(antPathMatcher.isPattern("sdfsadf"));
+        //Optional<String> first = paths.stream().filter(s -> antPathMatcher.match("agent/**/log", s)).findFirst();
+        //System.out.println(first.get());
+    }
 
-	@Test
-	public void test() throws MalformedURLException {
-		URL url = new URL("jar:file:/home/jpom/server/lib/server-2.4.8.jar!/BOOT-INF/classes!/");
-		String file = url.getFile();
-		String x = StrUtil.subBefore(file, "!", false);
-		System.out.println(x);
-		System.out.println(FileUtil.file(x));
+    @Test
+    public void test() throws MalformedURLException {
+        URL url = new URL("jar:file:/home/jpom/server/lib/server-2.4.8.jar!/BOOT-INF/classes!/");
+        String file = url.getFile();
+        String x = StrUtil.subBefore(file, "!", false);
+        System.out.println(x);
+        System.out.println(FileUtil.file(x));
 
-		System.out.println(StrUtil.subBefore("sssddsf", "!", false));
+        System.out.println(StrUtil.subBefore("sssddsf", "!", false));
 
-	}
+    }
 }

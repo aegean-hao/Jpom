@@ -1,20 +1,52 @@
 [
   {
-    "title": "节点管理",
-    "icon_v3": "block",
-    "id": "nodeManager",
+    "title": "节点&项目",
+    "icon_v3": "apartment",
+    "id": "outgiving",
     "childs": [
       {
-        "title": "节点列表",
+        "title": "逻辑节点",
         "id": "nodeList"
-      },
-      {
-        "title": "节点统计",
-        "id": "nodeStat"
       },
       {
         "title": "项目列表",
         "id": "projectSearch"
+      },
+      {
+        "id": "outgivingList",
+        "title": "分发列表"
+      },
+      {
+        "id": "outgivingLog",
+        "title": "分发日志"
+      },
+      {
+        "id": "outgivingWhitelistDirectory",
+        "title": "分发白名单",
+        "role": "system"
+      },
+      {
+        "id": "logRead",
+        "title": "日志搜索"
+      }
+    ]
+  },
+  {
+    "title": "在线构建",
+    "icon_v3": "build",
+    "id": "build",
+    "childs": [
+      {
+        "id": "repository",
+        "title": "仓库信息"
+      },
+      {
+        "id": "buildList",
+        "title": "构建列表"
+      },
+      {
+        "id": "buildHistory",
+        "title": "构建历史"
       }
     ]
   },
@@ -53,6 +85,10 @@
       {
         "title": "脚本执行记录",
         "id": "serverScriptLogList"
+      },
+      {
+        "title": "环境变量",
+        "id": "configWorkspaceEnv"
       }
     ]
   },
@@ -72,48 +108,6 @@
     ]
   },
   {
-    "title": "节点分发",
-    "icon_v3": "apartment",
-    "id": "outgiving",
-    "childs": [
-      {
-        "id": "outgivingList",
-        "title": "分发列表"
-      },
-      {
-        "id": "outgivingLog",
-        "title": "分发日志"
-      },
-      {
-        "id": "logRead",
-        "title": "日志阅读"
-      },
-      {
-        "id": "outgivingWhitelistDirectory",
-        "title": "白名单配置"
-      }
-    ]
-  },
-  {
-    "title": "在线构建",
-    "icon_v3": "build",
-    "id": "build",
-    "childs": [
-      {
-        "id": "repository",
-        "title": "仓库信息"
-      },
-      {
-        "id": "buildList",
-        "title": "构建列表"
-      },
-      {
-        "id": "buildHistory",
-        "title": "构建历史"
-      }
-    ]
-  },
-  {
     "title": "监控管理",
     "icon_v3": "monitor",
     "id": "monitor",
@@ -129,65 +123,40 @@
       {
         "id": "userOptLog",
         "title": "操作监控"
-      },
-      {
-        "id": "monitorConfigEmail",
-        "title": "邮箱配置",
-        "role": "system"
       }
     ]
   },
   {
-    "title": "用户管理",
-    "icon_v3": "user",
-    "id": "user",
+    "title": "文件管理",
+    "icon_v3": "file",
+    "id": "file-manager",
     "childs": [
       {
-        "id": "userList",
-        "title": "用户列表",
-        "role": "system"
+        "id": "fileStorage",
+        "title": "文件列表"
       },
       {
-        "id": "user_log",
-        "title": "操作日志",
-        "role": "system"
+        "id": "fileReleaseTask",
+        "title": "发布任务"
       }
     ]
   },
   {
-    "title": "系统管理",
-    "icon_v3": "setting",
-    "id": "setting",
+    "title": "其他管理",
+    "icon_v3": "tool",
+    "id": "tools",
     "childs": [
       {
-        "id": "workspace",
-        "title": "工作空间",
-        "role": "system"
+        "id": "certificate",
+        "title": "证书管理"
       },
       {
-        "id": "cacheManage",
-        "title": "缓存管理",
-        "role": "system"
+        "id": "myWorkspaceList",
+        "title": "我的工作空间"
       },
       {
-        "id": "logManage",
-        "title": "系统日志",
-        "role": "system"
-      },
-      {
-        "id": "update",
-        "title": "在线升级",
-        "role": "sys"
-      },
-      {
-        "id": "sysConfig",
-        "title": "系统配置",
-        "role": "system"
-      },
-      {
-        "id": "backup",
-        "title": "数据库备份",
-        "role": "system"
+        "id": "cronTools",
+        "title": "Cron表达式"
       }
     ]
   }

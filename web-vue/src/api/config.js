@@ -4,7 +4,7 @@ import Qs from "qs";
 import store from "../store";
 import router from "../router";
 import { NO_NOTIFY_KEY, NO_LOADING_KEY, TOKEN_HEADER_KEY, CACHE_WORKSPACE_ID, LOADING_TIP } from "@/utils/const";
-import { refreshToken } from "./user";
+import { refreshToken } from "./user/user";
 
 import { notification } from "ant-design-vue";
 
@@ -45,30 +45,14 @@ request.interceptors.request.use(
     if (config.headers["Content-Type"].indexOf("application/x-www-form-urlencoded") !== -1) {
       config.data = Qs.stringify(config.data);
     }
-    config.headers[TOKEN_HEADER_KEY] = store.getters.getToken;
-    config.headers[CACHE_WORKSPACE_ID] = getWid();
+    config.headers[TOKEN_HEADER_KEY] = store.getters.getToken || "";
+    config.headers[CACHE_WORKSPACE_ID] = store.getters.getWorkspaceId;
     return config;
   },
   (error) => {
     return Promise.reject(error);
   }
 );
-
-function getWid() {
-  let wid = router.app.$route.query.wid;
-  if (!wid) {
-    wid = getHashVars().wid;
-  }
-  return wid ? wid : store.getters.getWorkspaceId;
-}
-
-function getHashVars() {
-  var vars = {};
-  location.hash.replace(/[?&]+([^=&]+)=([^&]*)/gi, function (m, key, value) {
-    vars[key] = value;
-  });
-  return vars;
-}
 
 // 响应拦截器
 request.interceptors.response.use(
@@ -91,7 +75,7 @@ request.interceptors.response.use(
       // 网络异常
       Vue.prototype.$setLoading(false);
       notification.error({
-        message: "Network Error",
+        message: "Network Error No response",
         description: "网络开了小差！请重试...:" + error,
       });
       return Promise.reject(error);
@@ -142,7 +126,10 @@ function wrapResult(response) {
   if (res.code === 800 || res.code === 801) {
     return checkJWTToken(res, response);
   }
-
+  // 账号禁用
+  if (res.code === 802) {
+    return toLogin(res, response, 5000);
+  }
   // 禁止访问
   if (res.code === 999) {
     notification.error({
@@ -168,19 +155,34 @@ function wrapResult(response) {
   return res;
 }
 
+function toLogin(res, response, timeout = 100) {
+  notification.warn({
+    message: "提示信息 " + (pro ? "" : response.config.url),
+    description: res.msg,
+  });
+  console.error(response.config.url, res);
+  store.dispatch("logOut").then(() => {
+    const index = location.hash.indexOf("?");
+    let params = {};
+    if (index > -1) {
+      params = Qs.parse(location.hash.substring(index + 1));
+    }
+    router.push({
+      path: "/login",
+      query: params,
+    });
+    setTimeout(() => {
+      location.reload();
+    }, timeout);
+  });
+  return false;
+}
+
 // 判断 jwt token 状态
 function checkJWTToken(res, response) {
   // 如果是登录信息失效
   if (res.code === 800) {
-    notification.warn({
-      message: "提示信息 " + (pro ? "" : response.config.url),
-      description: res.msg,
-    });
-    console.error(response.config.url, res);
-    store.dispatch("logOut").then(() => {
-      router.push("/login");
-      location.reload();
-    });
+    toLogin(res, response);
     return false;
   }
   // 如果 jwt token 还可以续签
@@ -216,7 +218,7 @@ export default request;
 //
 export function loadRouterBase(url, params) {
   const paramsObj = params || {};
-  paramsObj[CACHE_WORKSPACE_ID] = getWid();
+  paramsObj[CACHE_WORKSPACE_ID] = paramsObj[CACHE_WORKSPACE_ID] || store.getters.getWorkspaceId;
   const paramsQuery = Qs.stringify(paramsObj);
   return `${((window.routerBase || "") + url).replace(new RegExp("//", "gm"), "/")}?${paramsQuery}`;
 }

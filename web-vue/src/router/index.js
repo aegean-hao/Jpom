@@ -12,9 +12,9 @@ Vue.use(Router);
 
 const children = [
   {
-    path: "/dashboard",
-    name: "dashboard",
-    component: () => import("../pages/dashboard"),
+    path: "/my-workspace",
+    name: "my-workspace",
+    component: () => import("../pages/layout/my-workspace"),
   },
   {
     path: "/node/list",
@@ -32,11 +32,6 @@ const children = [
     component: () => import("../pages/docker/swarm/list"),
   },
 
-  {
-    path: "/node/stat",
-    name: "node-stat",
-    component: () => import("../pages/node/stat"),
-  },
   {
     path: "/node/search",
     name: "node-search",
@@ -88,11 +83,7 @@ const children = [
     name: "dispatch-log-read",
     component: () => import("../pages/dispatch/logRead"),
   },
-  {
-    path: "/dispatch/white-list",
-    name: "dispatch-white-list",
-    component: () => import("../pages/dispatch/white-list"),
-  },
+
   {
     path: "/monitor/list",
     name: "monitor-list",
@@ -124,24 +115,98 @@ const children = [
     component: () => import("../pages/build/history"),
   },
   {
+    path: "/dispatch/white-list",
+    name: "dispatch-white-list",
+    component: () => import("../pages/dispatch/white-list"),
+  },
+  {
+    path: "/script/env-list",
+    name: "script-env-list",
+    component: () => import("../pages/script/env"),
+  },
+  {
+    path: "/tools/cron",
+    name: "cron-tools",
+    component: () => import("../pages/tools/cron"),
+  },
+  {
+    path: "/file-manager/file-storage",
+    name: "file-storage",
+    component: () => import("../pages/file-manager/fileStorage/list"),
+  },
+  {
+    path: "/file-manager/release-task",
+    name: "file-storage-release-task",
+    component: () => import("../pages/file-manager/release-task/list"),
+  },
+  {
+    path: "/certificate/list",
+    name: "/certificate-list",
+    component: () => import("../pages/certificate/list"),
+  },
+];
+
+const management = [
+  {
+    path: "/system/assets/machine-list",
+    name: "system-machine-list",
+    component: () => import("../pages/system/assets/machine/machine-list"),
+  },
+  {
+    path: "/system/assets/ssh-list",
+    name: "system-machine-ssh-list",
+    component: () => import("../pages/system/assets/ssh/ssh-list"),
+  },
+  {
+    path: "/system/assets/docker-list",
+    name: "system-machine-docker-list",
+    component: () => import("../pages/system/assets/docker/list"),
+  },
+  {
+    path: "/system/assets/repository-list",
+    name: "system-global-repository",
+    component: () => import("../pages/repository/global-repository"),
+  },
+  {
+    path: "/user/permission-group",
+    name: "permission-group",
+    component: () => import("../pages/user/permission-group"),
+  },
+  {
     path: "/user/list",
     name: "user-list",
     component: () => import("../pages/user"),
   },
-  // {
-  //   path: "/role/list",
-  //   name: "role-list",
-  //   component: () => import("../pages/role"),
-  // },
   {
     path: "/operation/log",
     name: "operation-log",
     component: () => import("../pages/user/operation-log"),
   },
   {
+    path: "/user/login-log",
+    name: "user-login-log",
+    component: () => import("../pages/user/user-login-log"),
+  },
+  // 工作空间
+  {
+    path: "/system/workspace",
+    name: "system-workspace",
+    component: () => import("../pages/system/workspace"),
+  },
+  {
+    path: "/system/global-env",
+    name: "global-env",
+    component: () => import("../pages/system/global-env"),
+  },
+  {
     path: "/system/mail",
     name: "system-mail",
     component: () => import("../pages/system/mail"),
+  },
+  {
+    path: "/system/oauth-config",
+    name: "oauth-config",
+    component: () => import("../pages/system/oauth-config"),
   },
   {
     path: "/system/cache",
@@ -163,39 +228,49 @@ const children = [
     name: "system-config",
     component: () => import("../pages/system/config"),
   },
+  {
+    path: "/system/ext-config",
+    name: "ext-config",
+    component: () => import("../pages/system/ext-config"),
+  },
   // 数据库备份
   {
     path: "/system/backup",
     name: "system-backup",
     component: () => import("../pages/system/backup"),
   },
-  // 工作空间
-  {
-    path: "/system/workspace",
-    name: "system-workspace",
-    component: () => import("../pages/system/workspace"),
-  },
 ];
 
 const router = new Router({
   mode: "hash",
   routes: [
-    {
-      path: "/test",
-      name: "test",
-      component: () => import("../pages/test"),
-    },
+    // {
+    //   path: "/test",
+    //   name: "test",
+    //   component: () => import("../pages/test"),
+    // },
     {
       path: "/login",
       name: "login",
       component: () => import("../pages/login"),
     },
+    // 用于过渡页面（避免跳转到管理页面重复请求接口，oauth2）
     {
       path: "/",
       name: "home",
+      component: () => import("../pages/layout/loading"),
+    },
+    {
+      path: "/management",
+      name: "management",
       component: () => import("../pages/layout"),
       redirect: "/node/list",
-      children: children,
+      children: children.map((item) => {
+        const props = item.props || {};
+        props.routerUrl = item.path;
+        item.props = props;
+        return item;
+      }),
     },
     {
       path: "/install",
@@ -216,6 +291,23 @@ const router = new Router({
       path: "/system/ipAccess",
       name: "ipAccess",
       component: () => import("../pages/system/ipAccess"),
+    },
+    {
+      path: "/system/management",
+      name: "sys-management",
+      component: () => import("../pages/layout/management"),
+      redirect: "/system/workspace",
+      children: management.map((item) => {
+        const props = item.props || {};
+        props.routerUrl = item.path;
+        props.mode = "management";
+        item.props = props;
+        //
+        const meta = item.meta || {};
+        meta.mode = props.mode;
+        item.meta = meta;
+        return item;
+      }),
     },
   ],
 });

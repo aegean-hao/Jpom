@@ -2,42 +2,18 @@
   <div class="code-mirror-div">
     <div class="tool-bar" ref="toolBar" v-if="showTool">
       <slot name="tool_before" />
-      <a-space>
+
+      <a-space class="tool-bar-end">
         <div>
           皮肤：
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            v-model="cmOptions.theme"
-            @select="handleSelectTheme"
-            show-search
-            option-filter-prop="children"
-            :filter-option="filterOption"
-            placeholder="请选择"
-            style="width: 150px"
-          >
+          <a-select v-model="cmOptions.theme" @select="handleSelectTheme" show-search option-filter-prop="children" :filter-option="filterOption" placeholder="请选择皮肤" style="width: 150px">
             <a-select-option v-for="item in cmThemeOptions" :key="item">{{ item }}</a-select-option>
           </a-select>
         </div>
         <div>
           语言：
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            v-model="cmOptions.mode"
-            @select="handleSelectMode"
-            show-search
-            option-filter-prop="children"
-            :filter-option="filterOption"
-            placeholder="请选择"
-            style="width: 150px"
-          >
+          <a-select v-model="cmOptions.mode" @select="handleSelectMode" show-search option-filter-prop="children" :filter-option="filterOption" placeholder="请选择语言模式" style="width: 150px">
+            <a-select-option value="">请选择语言模式</a-select-option>
             <a-select-option v-for="item in cmEditorModeOptions" :key="item">{{ item }}</a-select-option>
           </a-select>
         </div>
@@ -57,8 +33,6 @@
           <a-icon type="question-circle" theme="filled" />
         </a-tooltip>
       </a-space>
-
-      <slot name="tool_after" />
     </div>
     <div :style="{ height: codeMirrorHeight }">
       <codemirror
@@ -77,7 +51,7 @@
 </template>
 
 <script>
-import {codemirror} from "vue-codemirror";
+import { codemirror } from "vue-codemirror";
 import "codemirror/lib/codemirror.css";
 
 import "codemirror/theme/blackboard.css";
@@ -119,7 +93,7 @@ import "codemirror/addon/search/search.js";
 import "codemirror/addon/display/autorefresh.js";
 import "codemirror/addon/selection/mark-selection.js";
 import "codemirror/addon/search/match-highlighter.js";
-import {JSHINT} from "jshint";
+import { JSHINT } from "jshint";
 
 window.JSHINT = JSHINT;
 
@@ -155,6 +129,10 @@ const fileSuffixToModeMap = {
   py: "python",
   php: "php",
   md: "markdown",
+  dockerfile: "dockerfile",
+  properties: "properties",
+  lua: "lua",
+  go: "go",
 };
 
 export default {
@@ -200,13 +178,21 @@ export default {
       cmEditorModeOptions: modeList,
       cmOptions: {
         theme: localStorage.getItem("editorTheme") || "idea",
-        mode: "json",
+        mode: "",
+        // // 是否应滚动或换行以显示长行
         lineWrapping: true,
         lineNumbers: true,
         autofocus: true,
+        // 自动缩进，设置是否根据上下文自动缩进（和上一行相同的缩进量）。默认为true
         smartIndent: false,
         autocorrect: true,
+        dragDrop: false,
         spellcheck: true,
+        // scrollbarStyle: "Addons",
+        // 指定当前滚动到视图中的文档部分的上方和下方呈现的行数。默认为10 - [integer]
+        // // 有点类似于虚拟滚动显示
+        // Infinity - 无限制，始终显示全部内容，但是数据量大的时候会造成页面卡顿
+        viewportMargin: 10,
         hintOptions: this.cmHintOptions || {},
         extraKeys: {
           "Alt-Q": "autocomplete",
@@ -236,16 +222,14 @@ export default {
         },
         styleSelectedText: true,
         enableAutoFormatJson: true,
-        // defaultJsonIndentation: 2,
+        defaultJsonIndentation: 2,
       },
-      enableAutoFormatJson: true,
-      defaultJsonIndentation: 2,
     };
   },
 
   computed: {
     myCodemirror() {
-      return this.$refs.mirror.codemirror;
+      return this.$refs.myCm.codemirror;
     },
     inCode: {
       get() {
@@ -260,11 +244,24 @@ export default {
         if (!v) {
           return;
         }
-        const textArr = v.split(".");
-        const suffix = textArr.length ? textArr[textArr.length - 1] : v;
-        const newMode = fileSuffixToModeMap[suffix];
-        if (newMode) {
-          this.cmOptions = { ...this.cmOptions, mode: newMode };
+        if (v.indexOf(".") > -1) {
+          const textArr = v.split(".");
+          const suffix = textArr.length ? textArr[textArr.length - 1] : v;
+          const newMode = fileSuffixToModeMap[suffix];
+          if (newMode) {
+            this.cmOptions = { ...this.cmOptions, mode: newMode };
+          }
+        } else {
+          const v2 = v.toLowerCase();
+          for (let key in fileSuffixToModeMap) {
+            if (v2.endsWith(key)) {
+              const newMode = fileSuffixToModeMap[key];
+              if (newMode) {
+                this.cmOptions = { ...this.cmOptions, mode: newMode };
+              }
+              break;
+            }
+          }
         }
       },
       deep: false,
@@ -281,36 +278,38 @@ export default {
       immediate: true,
     },
     code(n) {
-      if (n != this.editorValue) {
+      // 延迟赋值,避免行号错乱
+      if (this.cmOptions.mode === "json") {
         try {
           this.editorValue = this.formatStrInJson(n);
         } catch (error) {
           this.editorValue = n;
           // 啥也不做
         }
+      } else {
+        this.editorValue = n;
       }
+      setTimeout(() => {
+        this.myCodemirror.refresh();
+      }, 100);
     },
   },
   mounted() {
     this.codeMirrorHeight = this.showTool ? `calc( 100% - ${this.$refs.toolBar.offsetHeight + 10}px )` : "100%";
-  },
-  created() {
     try {
-      if (!this.editorValue) {
-        this.cmOptions.lint = false;
-        return;
-      }
-      if (this.cmOptions.mode == "json") {
-        if (!this.enableAutoFormatJson) {
-          return;
-        }
+      // if (!this.editorValue) {
+      //   this.cmOptions.lint = false;
+      //   return;
+      // }
+      if (this.cmOptions.mode === "json" && this.cmOptions.enableAutoFormatJson) {
         this.editorValue = this.formatStrInJson(this.editorValue);
       }
     } catch (e) {
-      // console.log("初始化codemirror出错：" + e);
+      console.log("初始化codemirror出错：" + e);
       // this.$message.error("初始化codemirror出错：" + e);
     }
   },
+  created() {},
   methods: {
     // 选择语言
     handleSelectMode(v) {
@@ -325,7 +324,7 @@ export default {
 
     // 黏贴事件处理函数
     OnPaste() {
-      if (this.cmOptions.mode == "json") {
+      if (this.cmOptions.mode === "json") {
         try {
           this.editorValue = this.formatStrInJson(this.editorValue);
         } catch (e) {
@@ -345,14 +344,14 @@ export default {
       const keyCombination = event.ctrlKey || event.altKey || event.metaKey;
       //满足条件触发代码提示
       if (!keyCombination && keyCode > 64 && keyCode < 123) {
-        this.$refs.myCm.codemirror.showHint({ completeSingle: false });
+        this.myCodemirror.showHint({ completeSingle: false });
       }
     },
 
     // 按下鼠标时事件处理函数
     onMouseDown() {
       //取消代码提示
-      this.$refs.myCm.codemirror.closeHint();
+      this.myCodemirror.closeHint();
     },
 
     onCmCodeChanges(cm) {
@@ -361,13 +360,18 @@ export default {
 
     // 格式化字符串为json格式字符串
     formatStrInJson(strValue) {
-      this.$emit("checkJson", strValue);
-      return JSON.stringify(JSON.parse(strValue), null, this.defaultJsonIndentation);
+      //this.$emit("checkJson", strValue);
+      return JSON.stringify(JSON.parse(strValue), null, this.cmOptions.defaultJsonIndentation);
     },
 
     // 过滤选项
     filterOption(input, option) {
       return option.componentOptions.children[0].text.toLowerCase().indexOf(input.toLowerCase()) >= 0;
+    },
+    scrollToBottom() {
+      this.$nextTick(() => {
+        this.myCodemirror.execCommand("goDocEnd");
+      });
     },
   },
 };
@@ -390,12 +394,19 @@ export default {
 .tool-bar {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
   margin: 5px 5px;
   padding-bottom: 5px;
   border-bottom: 1px solid #d9d9d9;
   /* 20px 0 0; */
 }
+
+/* .tool-bar-end {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+} */
 .CodeMirror {
   height: 100%;
   border: 1px solid #ccc;

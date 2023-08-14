@@ -28,8 +28,8 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
         <artifactId>jpom-parent</artifactId>
-        <groupId>io.jpom</groupId>
-        <version>2.9.4</version>
+        <groupId>org.dromara.jpom</groupId>
+        <version>2.10.41</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
     <packaging>pom</packaging>
@@ -37,15 +37,14 @@
         <module>webhook</module>
         <module>email</module>
         <module>svn-clone</module>
-        <module>maven-plugin</module>
-        <module>auto-charset-jchardet</module>
-        <module>db-h2</module>
         <module>docker-cli</module>
         <module>git-clone</module>
+        <module>encrypt</module>
+        <module>ssh-jsch</module>
     </modules>
     <modelVersion>4.0.0</modelVersion>
-    <version>2.9.4</version>
-    <groupId>io.jpom.plugins</groupId>
+    <version>2.10.41</version>
+    <groupId>org.dromara.jpom.plugins</groupId>
     <artifactId>jpom-plugins-parent</artifactId>
     <name>Jpom Plugins</name>
     <description>
@@ -147,7 +146,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-gpg-plugin</artifactId>
-                        <version>1.6</version>
+                        <version>3.0.1</version>
                         <executions>
                             <execution>
                                 <id>verify-gpg</id>
@@ -161,7 +160,7 @@
                     <plugin>
                         <groupId>org.sonatype.plugins</groupId>
                         <artifactId>nexus-staging-maven-plugin</artifactId>
-                        <version>1.6.8</version>
+                        <version>1.6.13</version>
                         <extensions>true</extensions>
                         <configuration>
                             <serverId>sonatype-nexus-staging</serverId>
@@ -183,7 +182,7 @@
     </scm>
     <developers>
         <developer>
-            <name>jiangzeyin</name>
+            <name>bwcx_jzy</name>
             <email>bwcx_jzy@163.com</email>
             <organization>bwcx_jzy</organization>
         </developer>

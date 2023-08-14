@@ -8,7 +8,7 @@
       </a-form-model-item>
       <a-form-model-item :wrapper-col="{ span: 14, offset: 2 }">
         <a-button type="primary" class="btn" :disabled="submitAble" @click="onSubmit(false)">保存</a-button>
-        <a-button type="primary" class="btn" :disabled="submitAble" @click="onSubmit(true)">保存并重启</a-button>
+        <a-button type="danger" class="btn" :disabled="submitAble" @click="onSubmit(true)">保存并重启</a-button>
       </a-form-model-item>
     </a-form-model>
   </div>
@@ -44,7 +44,7 @@ export default {
   methods: {
     // load data
     loadData() {
-      getConfigData(this.node.id).then((res) => {
+      getConfigData({ nodeId: this.node.id }).then((res) => {
         if (res.code === 200) {
           this.temp.content = res.data;
           this.temp.content = res.data.content;

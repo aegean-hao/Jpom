@@ -1,56 +1,14 @@
 <template>
   <div class="full-content">
-    <!-- <div ref="filter" class="filter">
-
-      <a-button type="primary" @click="handleFilter">刷新</a-button>
-    </div> -->
     <!-- 数据表格 -->
     <a-table :data-source="list" size="middle" :columns="columns" :pagination="pagination" bordered rowKey="id" @change="change" :row-selection="rowSelection">
       <template slot="title">
         <a-space>
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            show-search
-            option-filter-prop="children"
-            v-model="listQuery.buildDataId"
-            allowClear
-            placeholder="请选择构建名称"
-            class="search-input-item"
-          >
-            <a-select-option v-for="build in buildList" :key="build.id">{{ build.name }}</a-select-option>
-          </a-select>
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            show-search
-            option-filter-prop="children"
-            v-model="listQuery.status"
-            allowClear
-            placeholder="请选择状态"
-            class="search-input-item"
-          >
+          <a-input allowClear class="search-input-item" @pressEnter="loadData" v-model="listQuery['%buildName%']" placeholder="构建名称" />
+          <a-select show-search option-filter-prop="children" v-model="listQuery.status" allowClear placeholder="请选择状态" class="search-input-item">
             <a-select-option v-for="(val, key) in statusMap" :key="key">{{ val }}</a-select-option>
           </a-select>
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            show-search
-            option-filter-prop="children"
-            v-model="listQuery.triggerBuildType"
-            allowClear
-            placeholder="请选择触发类型"
-            class="search-input-item"
-          >
+          <a-select show-search option-filter-prop="children" v-model="listQuery.triggerBuildType" allowClear placeholder="请选择触发类型" class="search-input-item">
             <a-select-option v-for="(val, key) in triggerBuildTypeMap" :key="key">{{ val }}</a-select-option>
           </a-select>
           <a-range-picker class="search-input-item" :show-time="{ format: 'HH:mm:ss' }" format="YYYY-MM-DD HH:mm:ss" @change="onchangeTime" />
@@ -68,45 +26,40 @@
           </a-tooltip>
         </a-space>
       </template>
-      <a-tooltip slot="tooltip" slot-scope="text" placement="topLeft" :title="text">
+      <a-tooltip slot="tooltip" slot-scope="text" :title="text">
         <span>{{ text }}</span>
       </a-tooltip>
-      <a-tooltip slot="buildNumberId" slot-scope="text, record" placement="topLeft" :title="text + ' ( 点击查看日志 ) '">
+      <a-tooltip slot="buildNumberId" slot-scope="text, record" :title="text + ' ( 点击查看日志 ) '">
         <a-tag color="#108ee9" @click="handleBuildLog(record)">#{{ text }}</a-tag>
       </a-tooltip>
-      <template slot="status" slot-scope="text" placement="topleft" :title="text">
-        <span>{{ statusMap[text] }}</span>
-      </template>
-      <template slot="releaseMethod" slot-scope="text" placement="topleft" :title="text">
+      <a-tooltip slot="status" slot-scope="text, item" :title="item.statusMsg || statusMap[text] || '未知'">
+        <a-tag :color="statusColor[item.status]">{{ statusMap[text] || "未知" }}</a-tag>
+      </a-tooltip>
+      <a-tooltip slot="releaseMethod" slot-scope="text" :title="releaseMethodMap[text]">
         <span>{{ releaseMethodMap[text] }}</span>
-      </template>
-      <template slot="triggerBuildType" slot-scope="text" placement="topleft" :title="text">
+      </a-tooltip>
+      <a-tooltip slot="triggerBuildType" slot-scope="text" :title="triggerBuildTypeMap[text]">
         <span>{{ triggerBuildTypeMap[text] }}</span>
-      </template>
+      </a-tooltip>
 
-      <template slot="startTime" slot-scope="text, record" placement="topLeft">
-        <a-tooltip :title="`开始时间：${parseTime(record.startTime)}，${record.endTime ? '结束时间：' + parseTime(record.endTime) : ''}`">
-          <span>{{ parseTime(record.startTime) }}</span>
-          <!-- <div>{{ parseTime(record.endTime) }}</div> -->
-        </a-tooltip>
-      </template>
-      <template slot="endTime" slot-scope="text, record" placement="topLeft">
-        <a-tooltip :title="`开始时间：${parseTime(record.startTime)}，${record.endTime ? '结束时间：' + parseTime(record.endTime) : ''}`">
-          <span v-if="record.endTime">{{ formatDuration((record.endTime || 0) - (record.startTime || 0), "", 2) }}</span>
-          <span v-else>-</span>
-        </a-tooltip>
-      </template>
+      <a-tooltip slot="resultFileSize" slot-scope="text, record" :title="`产物文件大小：${renderSize(record.resultFileSize)}， 日志文件： ${renderSize(record.buildLogFileSize)}`">
+        <span>{{ renderSize(record.resultFileSize) }}</span>
+        <!-- <div>{{ parseTime(record.endTime) }}</div> -->
+      </a-tooltip>
+
+      <a-tooltip slot="endTime" slot-scope="text, record" :title="`开始时间：${parseTime(record.startTime)}，${record.endTime ? '结束时间：' + parseTime(record.endTime) : ''}`">
+        <span v-if="record.endTime">{{ formatDuration((record.endTime || 0) - (record.startTime || 0), "", 2) }}</span>
+        <span v-else>-</span>
+      </a-tooltip>
 
       <template slot="operation" slot-scope="text, record">
         <a-space>
           <a-tooltip title="下载构建日志,如果按钮不可用表示日志文件不存在,一般是构建历史相关文件被删除">
-            <a-button size="small" type="primary" :disabled="!record.hasLog" @click="handleDownload(record)"><a-icon type="read" /></a-button>
+            <a-button size="small" icon="download" type="primary" :disabled="!record.hasLog" @click="handleDownload(record)">日志</a-button>
           </a-tooltip>
 
           <a-tooltip title="下载构建产物,如果按钮不可用表示产物文件不存在,一般是构建没有产生对应的文件或者构建历史相关文件被删除">
-            <a-button size="small" type="primary" :disabled="!record.hashFile" @click="handleFile(record)">
-              <a-icon type="file-zip" />
-            </a-button>
+            <a-button size="small" icon="download" type="primary" :disabled="!record.hasFile" @click="handleFile(record)"> 产物 </a-button>
           </a-tooltip>
 
           <a-dropdown>
@@ -117,16 +70,16 @@
             <a-menu slot="overlay">
               <a-menu-item>
                 <template v-if="record.releaseMethod !== 5">
-                  <a-button :disabled="!record.hashFile || record.releaseMethod === 0" type="danger" @click="handleRollback(record)">回滚 </a-button>
+                  <a-button size="small" :disabled="!record.hasFile || record.releaseMethod === 0" type="danger" @click="handleRollback(record)">回滚 </a-button>
                 </template>
                 <template v-else>
                   <a-tooltip title="Dockerfile 构建方式不支持在这里回滚">
-                    <a-button :disabled="true" type="danger">回滚 </a-button>
+                    <a-button size="small" :disabled="true" type="danger">回滚 </a-button>
                   </a-tooltip>
                 </template>
               </a-menu-item>
               <a-menu-item>
-                <a-button type="danger" @click="handleDelete(record)">删除</a-button>
+                <a-button size="small" type="danger" @click="handleDelete(record)">删除</a-button>
               </a-menu-item>
             </a-menu>
           </a-dropdown>
@@ -134,17 +87,15 @@
       </template>
     </a-table>
     <!-- 构建日志 -->
-    <a-modal :width="'80vw'" v-model="buildLogVisible" title="构建日志" :footer="null" :maskClosable="false" @cancel="closeBuildLogModel">
+    <a-modal destroyOnClose :width="'80vw'" v-model="buildLogVisible" title="构建日志" :footer="null" :maskClosable="false" @cancel="closeBuildLogModel">
       <build-log v-if="buildLogVisible" :temp="temp" />
     </a-modal>
   </div>
 </template>
 <script>
 import BuildLog from "./log";
-import {deleteBuildHistory, downloadBuildFile, downloadBuildLog, getBuildListAll, geteBuildHistory, releaseMethodMap, rollback, statusMap, triggerBuildTypeMap} from "@/api/build-info";
-import {formatDuration, parseTime} from "@/utils/time";
-
-import {CHANGE_PAGE, COMPUTED_PAGINATION, PAGE_DEFAULT_LIST_QUERY} from "@/utils/const";
+import { deleteBuildHistory, downloadBuildFile, downloadBuildLog, geteBuildHistory, releaseMethodMap, rollback, statusMap, statusColor, triggerBuildTypeMap } from "@/api/build-info";
+import { CHANGE_PAGE, COMPUTED_PAGINATION, PAGE_DEFAULT_LIST_QUERY, formatDuration, parseTime, renderSize } from "@/utils/const";
 
 export default {
   components: {
@@ -156,37 +107,46 @@ export default {
       triggerBuildTypeMap: triggerBuildTypeMap,
       loading: false,
       list: [],
-      buildList: [],
+
       total: 0,
       listQuery: Object.assign({}, PAGE_DEFAULT_LIST_QUERY),
-      statusMap: statusMap,
+      statusMap,
+      statusColor,
       temp: {},
       buildLogVisible: false,
       tableSelections: [],
       columns: [
-        { title: "构建名称", dataIndex: "buildName", /*width: 120,*/ ellipsis: true, scopedSlots: { customRender: "tooltip" } },
-        { title: "构建 ID", dataIndex: "buildNumberId", width: 90, align: "center", ellipsis: true, scopedSlots: { customRender: "buildNumberId" } },
-        { title: "备注", dataIndex: "buildRemark", /*width: 120,*/ ellipsis: true, scopedSlots: { customRender: "tooltip" } },
+        { title: "构建名称", dataIndex: "buildName", width: 120, ellipsis: true, scopedSlots: { customRender: "tooltip" } },
+        { title: "构建 ID", dataIndex: "buildNumberId", width: "90px", align: "center", ellipsis: true, scopedSlots: { customRender: "buildNumberId" } },
+        { title: "备注", dataIndex: "buildRemark", width: 120, ellipsis: true, scopedSlots: { customRender: "tooltip" } },
 
-        { title: "状态", dataIndex: "status", width: 120, ellipsis: true, scopedSlots: { customRender: "status" } },
-        { title: "触发类型", dataIndex: "triggerBuildType", width: 100, ellipsis: true, scopedSlots: { customRender: "triggerBuildType" } },
+        { title: "状态", dataIndex: "status", width: "100px", align: "center", ellipsis: true, scopedSlots: { customRender: "status" } },
+        { title: "触发类型", dataIndex: "triggerBuildType", align: "center", width: "100px", ellipsis: true, scopedSlots: { customRender: "triggerBuildType" } },
+        { title: "占用空间", dataIndex: "resultFileSize", width: "100px", sorter: true, ellipsis: true, scopedSlots: { customRender: "resultFileSize" } },
         {
           title: "开始时间",
           dataIndex: "startTime",
           sorter: true,
-          scopedSlots: { customRender: "startTime" },
-          width: 170,
+          customRender: (text) => parseTime(text),
+          width: "170px",
         },
         {
           title: "耗时",
           dataIndex: "endTime",
-          sorter: true,
+          // sorter: true,
           scopedSlots: { customRender: "endTime" },
-          width: 120,
+          width: "120px",
         },
-        { title: "发布方式", dataIndex: "releaseMethod", width: 100, ellipsis: true, scopedSlots: { customRender: "releaseMethod" } },
-        { title: "构建人", dataIndex: "modifyUser", width: 130, ellipsis: true, scopedSlots: { customRender: "modifyUser" } },
-        { title: "操作", dataIndex: "operation", scopedSlots: { customRender: "operation" }, width: 150, align: "center" },
+        {
+          title: "数据更新时间",
+          dataIndex: "modifyTimeMillis",
+          sorter: true,
+          customRender: (text) => parseTime(text),
+          width: "170px",
+        },
+        { title: "发布方式", dataIndex: "releaseMethod", width: "100px", ellipsis: true, scopedSlots: { customRender: "releaseMethod" } },
+        { title: "构建人", dataIndex: "modifyUser", width: "130px", ellipsis: true, scopedSlots: { customRender: "modifyUser" } },
+        { title: "操作", dataIndex: "operation", scopedSlots: { customRender: "operation" }, width: "200px", align: "center", fixed: "right" },
       ],
     };
   },
@@ -202,20 +162,14 @@ export default {
     },
   },
   created() {
-    this.loadBuildList();
+    // this.loadBuildList();
     this.loadData();
   },
   methods: {
     parseTime,
+    renderSize,
     formatDuration,
-    // 加载构建列表
-    loadBuildList() {
-      getBuildListAll().then((res) => {
-        if (res.code === 200) {
-          this.buildList = res.data;
-        }
-      });
-    },
+
     // 加载数据
     loadData(pointerEvent) {
       this.listQuery.page = pointerEvent?.altKey || pointerEvent?.ctrlKey ? 1 : this.listQuery.page;
@@ -246,12 +200,12 @@ export default {
 
     // 下载构建日志
     handleDownload(record) {
-      window.open(downloadBuildLog(record.id), "_self");
+      window.open(downloadBuildLog(record.id), "_blank");
     },
 
     // 下载构建产物
     handleFile(record) {
-      window.open(downloadBuildFile(record.id), "_self");
+      window.open(downloadBuildFile(record.id), "_blank");
     },
 
     // 回滚

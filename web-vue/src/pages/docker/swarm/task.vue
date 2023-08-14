@@ -9,24 +9,13 @@
           <a-input v-model="listQuery['taskNode']" @pressEnter="loadData" placeholder="节点id" class="search-input-item" />
 
           <a-tooltip :title="TASK_STATE[listQuery['taskState']]">
-            <a-select
-              :getPopupContainer="
-                (triggerNode) => {
-                  return triggerNode.parentNode || document.body;
-                }
-              "
-              show-search
-              option-filter-prop="children"
-              v-model="listQuery['taskState']"
-              allowClear
-              placeholder="状态"
-              class="search-input-item"
-            >
+            <a-select show-search option-filter-prop="children" v-model="listQuery['taskState']" allowClear placeholder="状态" class="search-input-item">
               <a-select-option :key="key" v-for="(item, key) in TASK_STATE">{{ item }}- {{ key }}</a-select-option>
               <a-select-option value="">状态</a-select-option>
             </a-select>
           </a-tooltip>
           <a-button type="primary" @click="loadData" :loading="loading">搜索</a-button>
+          <a-statistic-countdown format=" s 秒" title="刷新倒计时" :value="countdownTime" @finish="loadData" />
         </a-space>
       </template>
       <a-tooltip slot="tooltip" slot-scope="text" placement="topLeft" :title="text">
@@ -80,7 +69,7 @@
       </template>
     </a-table>
     <!-- 编辑节点 -->
-    <a-modal v-model="editVisible" title="编辑节点" @ok="handleEditOk" :maskClosable="false">
+    <a-modal destroyOnClose v-model="editVisible" title="编辑节点" @ok="handleEditOk" :maskClosable="false">
       <a-form-model ref="editForm" :rules="rules" :model="temp" :label-col="{ span: 4 }" :wrapper-col="{ span: 18 }">
         <a-form-model-item label="角色" prop="role">
           <a-radio-group name="role" v-model="temp.role">
@@ -98,15 +87,15 @@
       </a-form-model>
     </a-modal>
     <!-- 查看日志 -->
-    <a-modal v-model="logVisible" title="查看日志" width="80vw" :footer="null" :maskClosable="false">
-      <pull-log v-if="logVisible" :id="this.id" :dataId="this.temp.id" type="taks" />
+    <a-modal destroyOnClose v-model="logVisible" title="查看日志" width="80vw" :footer="null" :maskClosable="false">
+      <pull-log v-if="logVisible" :id="this.id" :dataId="this.temp.id" type="taks" :urlPrefix="this.urlPrefix" />
     </a-modal>
   </div>
 </template>
 
 <script>
-import {dockerSwarmNodeLeave, dockerSwarmNodeUpdate, dockerSwarmServicesTaskList, TASK_STATE} from "@/api/docker-swarm";
-import {parseTime} from "@/utils/time";
+import { dockerSwarmNodeUpdate, dockerSwarmServicesTaskList, TASK_STATE } from "@/api/docker-swarm";
+import { parseTime } from "@/utils/const";
 import PullLog from "./pull-log";
 
 export default {
@@ -122,6 +111,9 @@ export default {
     visible: {
       type: Boolean,
       default: false,
+    },
+    urlPrefix: {
+      type: String,
     },
   },
   data() {
@@ -140,7 +132,7 @@ export default {
         availability: [{ required: true, message: "请选择节点状态", trigger: "blur" }],
       },
       columns: [
-        { title: "序号", width: 80, ellipsis: true, align: "center", customRender: (text, record, index) => `${index + 1}` },
+        { title: "序号", width: "80px", ellipsis: true, align: "center", customRender: (text, record, index) => `${index + 1}` },
         { title: "任务Id", dataIndex: "id", ellipsis: true, scopedSlots: { customRender: "tooltip" } },
         { title: "节点Id", dataIndex: "nodeId", ellipsis: true, scopedSlots: { customRender: "tooltip" } },
         { title: "服务ID", dataIndex: "serviceId", ellipsis: true, scopedSlots: { customRender: "tooltip" } },
@@ -149,7 +141,8 @@ export default {
         // { title: "端点", dataIndex: "spec.endpointSpec.mode", ellipsis: true, width: 100, scopedSlots: { customRender: "tooltip" } },
         // { title: "节点地址", width: 150, dataIndex: "status.address", ellipsis: true, scopedSlots: { customRender: "address" } },
         { title: "状态", width: 140, dataIndex: "desiredState", ellipsis: true, scopedSlots: { customRender: "desiredState" } },
-        { title: "slot", width: 50, dataIndex: "slot", ellipsis: true, scopedSlots: { customRender: "tooltip" } },
+        { title: "错误信息", width: 150, dataIndex: "status.err", ellipsis: true, scopedSlots: { customRender: "tooltip" } },
+        { title: "slot", width: "80px", dataIndex: "slot", ellipsis: true, scopedSlots: { customRender: "tooltip" } },
 
         // { title: "系统类型", width: 140, align: "center", dataIndex: "description.platform.os", ellipsis: true, scopedSlots: { customRender: "os" } },
         // {
@@ -168,16 +161,15 @@ export default {
           sorter: (a, b) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime(),
           sortDirections: ["descend", "ascend"],
           defaultSortOrder: "descend",
-          width: 180,
+          width: "180px",
         },
-        { title: "操作", dataIndex: "operation", scopedSlots: { customRender: "operation" }, align: "center", width: 80 },
+        { title: "操作", dataIndex: "operation", scopedSlots: { customRender: "operation" }, align: "center", width: "80px" },
       ],
+      countdownTime: Date.now(),
     };
   },
   computed: {},
-  beforeDestroy() {
-    this.autoUpdateTime && clearTimeout(this.autoUpdateTime);
-  },
+  beforeDestroy() {},
   mounted() {
     this.listQuery.taskState = this.taskState;
     this.loadData();
@@ -194,15 +186,12 @@ export default {
         this.listQuery.serviceId = this.serviceId;
       }
       this.listQuery.id = this.id;
-      dockerSwarmServicesTaskList(this.listQuery).then((res) => {
+      dockerSwarmServicesTaskList(this.urlPrefix, this.listQuery).then((res) => {
         if (res.code === 200) {
           this.list = res.data;
         }
         this.loading = false;
-        clearTimeout(this.autoUpdateTime);
-        this.autoUpdateTime = setTimeout(() => {
-          this.loadData();
-        }, 3000);
+        this.countdownTime = Date.now() + 5 * 1000;
       });
     },
     // 日志
@@ -224,7 +213,7 @@ export default {
           return false;
         }
         this.temp.id = this.id;
-        dockerSwarmNodeUpdate(this.temp).then((res) => {
+        dockerSwarmNodeUpdate(this.urlPrefix, this.temp).then((res) => {
           if (res.code === 200) {
             // 成功
             this.$notification.success({
@@ -236,30 +225,16 @@ export default {
         });
       });
     },
-    // 解绑
-    handleLeava(record) {
-      this.$confirm({
-        title: "系统提示",
-        content: "真的要在该集群剔除此节点么？",
-        okText: "确认",
-        cancelText: "取消",
-        onOk: () => {
-          // 组装参数
-          const params = {
-            nodeId: record.id,
-            id: this.id,
-          };
-          dockerSwarmNodeLeave(params).then((res) => {
-            if (res.code === 200) {
-              this.$notification.success({
-                message: res.msg,
-              });
-              this.loadData();
-            }
-          });
-        },
-      });
-    },
   },
 };
 </script>
+<style scoped>
+/deep/ .ant-statistic div {
+  display: inline-block;
+}
+
+/deep/ .ant-statistic-content-value,
+/deep/ .ant-statistic-content {
+  font-size: 16px;
+}
+</style>

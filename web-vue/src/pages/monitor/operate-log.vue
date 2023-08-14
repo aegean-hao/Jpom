@@ -5,17 +5,7 @@
       <template slot="title">
         <a-space>
           <a-input v-model="listQuery['%name%']" @pressEnter="loadData" placeholder="监控名称" class="search-input-item" />
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            v-model="listQuery.status"
-            allowClear
-            placeholder="开启状态"
-            class="search-input-item"
-          >
+          <a-select v-model="listQuery.status" allowClear placeholder="开启状态" class="search-input-item">
             <a-select-option :value="1">开启</a-select-option>
             <a-select-option :value="0">关闭</a-select-option>
           </a-select>
@@ -42,7 +32,7 @@
       </template>
     </a-table>
     <!-- 编辑区 -->
-    <a-modal v-model="editOperateMonitorVisible" width="50vw" title="编辑监控" @ok="handleEditOperateMonitorOk" :maskClosable="false">
+    <a-modal destroyOnClose v-model="editOperateMonitorVisible" width="50vw" title="编辑监控" @ok="handleEditOperateMonitorOk" :maskClosable="false">
       <a-form-model ref="editMonitorForm" :rules="rules" :model="temp" :label-col="{ span: 5 }" :wrapper-col="{ span: 17 }">
         <a-form-model-item label="监控名称" prop="name">
           <a-input v-model="temp.name" :maxLength="50" placeholder="监控名称" />
@@ -98,10 +88,9 @@
   </div>
 </template>
 <script>
-import {deleteMonitorOperate, editMonitorOperate, getMonitorOperateLogList, getMonitorOperateTypeList} from "@/api/monitor";
-import {getUserListAll} from "@/api/user";
-import {CHANGE_PAGE, COMPUTED_PAGINATION, PAGE_DEFAULT_LIST_QUERY} from "@/utils/const";
-import {parseTime} from "@/utils/time";
+import { deleteMonitorOperate, editMonitorOperate, getMonitorOperateLogList, getMonitorOperateTypeList } from "@/api/monitor";
+import { getUserListAll } from "@/api/user/user";
+import { CHANGE_PAGE, COMPUTED_PAGINATION, PAGE_DEFAULT_LIST_QUERY, parseTime } from "@/utils/const";
 
 export default {
   data() {

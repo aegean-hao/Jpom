@@ -1,0 +1,31 @@
+alterType,tableName,name,type,len,defaultValue,comment,notNull
+ADD,PROJECT_INFO,group,String,50,,项目分组
+ADD,OUT_GIVING,group,String,50,,项目分组
+ADD,BUILD_INFO,buildEnvParameter,TEXT,,,构建环境变量
+ADD,BUILDHISTORYLOG,buildEnvCache,TEXT,,,构建环境变量
+ADD,OUT_GIVING,webhook,String,255,,webhook
+DROP,NODE_INFO,unLockType
+ADD,NODE_INFO,machineId,String,50,,机器id
+ADD,MACHINE_NODE_INFO,templateNode,TINYINT,,,模板节点 ，1 模板节点 0 非模板节点
+ADD,REPOSITORY,timeout,Integer,,,仓库超时连接
+ADD,SSH_INFO,group,String,50,,分组
+ADD,SSH_INFO,machineSshId,String,50,,机器sshid
+ADD,SSHTERMINALEXECUTELOG,machineSshId,String,50,,机器sshid
+ADD,SSHTERMINALEXECUTELOG,machineSshName,String,50,,机器ssh 名称
+ADD,MACHINE_SSH_INFO,allowEditSuffix,TEXT,,,允许编辑的后缀文件
+ADD,BUILDHISTORYLOG,resultFileSize,Long,,,产物文件大小
+ADD,BUILDHISTORYLOG,buildLogFileSize,Long,,,构建日志文件大小
+DROP-TABLE,NODE_STAT,
+DROP-TABLE,SYSTEMMONITORLOG,
+ADD,MACHINE_NODE_INFO,installId,String,50,,机器安装 id
+ADD,MACHINE_NODE_STAT_LOG,occupySwapMemory,Double,,,交互内存
+ADD,MACHINE_NODE_STAT_LOG,occupyVirtualMemory,Double,,,虚拟内存
+ADD,MACHINE_NODE_INFO,osSwapTotal,Long,,,虚拟总内存
+ADD,MACHINE_NODE_INFO,osVirtualMax,Long,,,交互总内存
+ADD,DOCKER_INFO,machineDockerId,String,50,,机器id
+DROP,DOCKER_SWARM_INFO,machineDockerId,
+DROP,DOCKER_SWARM_INFO,status,
+DROP,DOCKER_SWARM_INFO,failureMsg,
+DROP,DOCKER_SWARM_INFO,dockerId,
+DROP,DOCKER_SWARM_INFO,dockerId,
+ADD,MACHINE_DOCKER_INFO,swarmControlAvailable,TINYINT,,,集群管理员

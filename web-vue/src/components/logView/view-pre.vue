@@ -1,156 +1,261 @@
 <template>
-  <pre class="log-view" :id="`${this.domId}`" :style="`height:${this.height}`">{{ defText }}</pre>
+  <div class="log-view-wrapper force-scrollbar">
+    <RecycleScroller class="scroller" :id="uniqueId" :style="`min-height:${height};height:${height}`" key-field="id" :items="showList" :item-size="itemHeight" :emitUpdate="false">
+      <template v-slot="{ index, item }">
+        <div class="item">
+          <template v-if="!item.warp">
+            <span class="linenumber">{{ index + 1 }}</span>
+            <span v-html="item.text"></span>
+            &nbsp;
+          </template>
+        </div>
+        <!-- <code-editor
+          ref="codemirror"
+          v-model="item.text"
+          :options="{
+            theme: 'panda-syntax',
+            mode: 'verilog',
+            // maxHighlightLength: 5,
+            viewportMargin: 1,
+            cursorBlinkRate: -1,
+            tabSize: 2,
+            readOnly: true,
+            styleActiveLine: true,
+            lineNumbers: true,
+            firstLineNumber: index + 1,
+            lineWrapping: config.wordBreak,
+          }"
+        ></code-editor> -->
+      </template>
+    </RecycleScroller>
+  </div>
 </template>
 
 <script>
+import ansiparse from "@/utils/parse-ansi";
+// import codeEditor from "@/components/codeEditor";
+import { RecycleScroller } from "vue-virtual-scroller";
+import "vue-virtual-scroller/dist/vue-virtual-scroller.css";
+import Prism from "prismjs";
+import "prismjs/components/prism-log";
+import "prismjs/themes/prism-okaidia.min.css";
 export default {
-  components: {},
+  components: {
+    // codeEditor,
+    RecycleScroller,
+  },
   props: {
     height: {
       String,
       default: "50vh",
     },
-    searchReg: {
-      String,
-      default: "",
-    },
+
     config: Object,
     id: {
       String,
       default: "logScrollArea",
     },
-    seg: {
-      String,
-      default: "</br>",
-    },
   },
   data() {
     return {
-      regReplaceText: "<b style='color:red'>$1</b>",
-      regRemove: /<b[^>]*>([^>]*)<\/b[^>]*>/g,
-      regRemoveSpan: /<span[^>]*>([^>]*)<\/span[^>]*>/g,
-      //   searchReg: null,
-      // 日志内容
-      logContextArray: [],
-      //   defId: "logScrollArea",
       defText: "loading context...",
-      domId: "",
+      logContext: "",
+      dataArray: [],
+      idInc: 0,
+      visibleStartIndex: -1,
+      itemHeight: 24,
+      inited: false,
+      uniqueId: `component_${Math.random().toString(36).substring(2, 15)}`,
     };
   },
+  computed: {
+    wordBreak() {
+      // this.changeBuffer();
+      return this.config.wordBreak || false;
+    },
+    showList() {
+      const element = document.querySelector(`#${this.uniqueId}`);
+      let result;
+      if (this.inited) {
+        result = this.dataArray.length
+          ? [...this.dataArray]
+          : [
+              {
+                text: this.defText,
+                id: "0-def",
+              },
+            ];
+      } else {
+        // 还没有 dom 对象
+        result = [
+          {
+            text: "loading..................",
+            id: "0-def",
+          },
+        ];
+      }
+      let warp = false;
+      if (element) {
+        // 填充空白，避免无内容 页面背景太低
+        const min = Math.ceil(element.clientHeight / this.itemHeight);
+        const le = min - result.length;
+        for (let i = 0; i < le; i++) {
+          result.push({
+            id: "system-warp-empty:" + i,
+            warp: true,
+          });
+          warp = true;
+        }
+      }
+      if (!warp) {
+        // 最后填充一行空白，避免无法看到滚动条
+        result = result.concat([
+          {
+            id: "system-warp-end:1",
+            warp: true,
+          },
+        ]);
+      }
+      return result;
+    },
+    // showContext: {
+    //   get() {
+    //     return this.logContext || this.defText;
+    //   },
+    //   set() {},
+    // },
+  },
   mounted() {
-    this.domId = this.id + new Date().getTime();
-    //let html = "<span><b><b style='color:OrangeRed;'>222</b></b></span>";
-    //console.log(html.replace(this.regRemove, "$1").replace(this.regRemove, "$1").replace(this.regRemoveSpan, "$1"));
+    const timer = setInterval(() => {
+      const element = document.querySelector(`#${this.uniqueId}`);
+      if (element) {
+        this.inited = true;
+        clearInterval(timer);
+      }
+    }, 200);
   },
   methods: {
+    scrollToBottom() {
+      const element = document.querySelector(`#${this.uniqueId}`);
+      if (element) {
+        // console.log(element, element.scrollHeight);
+        element.scrollTop = element.scrollHeight - element.clientHeight;
+        // this.scrollTo(element, element.scrollHeight - element.clientHeight, 500);
+        // element.scrollIntoView(false);
+      }
+    },
+    scrollTo(element, position) {
+      if (!window.requestAnimationFrame) {
+        window.requestAnimationFrame = function (cb) {
+          return setTimeout(cb, 10);
+        };
+      }
+      let scrollTop = element.scrollTop;
+      const step = function () {
+        const distance = position - scrollTop;
+        scrollTop = scrollTop + distance / 5;
+        if (Math.abs(distance) < 1) {
+          element.scrollTop = position;
+        } else {
+          element.scrollTop = scrollTop;
+          requestAnimationFrame(step);
+        }
+      };
+      step();
+    },
+    onUpdate(viewStartIndex, viewEndIndex, visibleStartIndex, visibleEndIndex) {
+      const tempArray = this.dataArray.slice(visibleStartIndex, visibleEndIndex);
+      this.logContext = tempArray
+        .map((item) => {
+          return item.text;
+        })
+        .map((item) => {
+          return (
+            // gitee isuess I657JR
+            ansiparse(item)
+              .map((ansiItem) => {
+                return ansiItem.text;
+              })
+              .join("") + "\r\n"
+          );
+        })
+        .join("");
+      this.visibleStartIndex = visibleStartIndex;
+
+      // console.log(this.dataArray.length, tempArray.length, visibleStartIndex, visibleEndIndex);
+      // console.log(this.logContext);
+    },
     //
     appendLine(data) {
       if (!data) {
         return;
       }
-      const dataArray = Array.isArray(data) ? data : [data];
-      dataArray.forEach((item) => {
-        item = item.replace(/[<>&]/g, function (match) {
-          //  pos, originalText
-          switch (match) {
-            case "<":
-              return "&lt;";
-            case ">":
-              return "&gt;";
-            case "&":
-              return "&amp;";
-            case '"':
-              return "&quot;";
-          }
+      const tempArray = (Array.isArray(data) ? data : [data])
+        .map((item) => {
+          return {
+            text: ansiparse(item)
+              .map((ansiItem) => {
+                return ansiItem.text;
+              })
+              .join(""),
+            id: this.idInc++,
+          };
+        })
+        .map((item) => {
+          return {
+            text: Prism.highlight(item.text, Prism.languages.log, "log"),
+            id: item.id,
+          };
         });
-        this.logContextArray.push(this.lineFormat(item));
-      });
-
-      //   console.log(this.config.logScroll, this.logContextArray);
+      this.dataArray = [...this.dataArray, ...tempArray];
+      // console.log(this.dataArray);
       if (this.config.logScroll) {
-        this.logContextArray = this.logContextArray.slice(-this.config.logShowLine);
+        setTimeout(() => {
+          // 延迟触发滚动
+          this.$nextTick(() => {
+            this.scrollToBottom(".scroller");
+          });
+        }, 500);
       }
+    },
 
-      // 自动滚动到底部
-      this.$nextTick(() => {
-        this.toHtml();
-        const projectConsole = document.getElementById(this.domId);
-        if (!projectConsole) {
-          return;
-        }
-        // console.log("111");
-        if (this.config.logScroll) {
-          projectConsole.scrollTop = projectConsole.scrollHeight;
-        }
-      });
-    },
-    toHtml() {
-      const projectConsole = document.getElementById(this.domId);
-      if (!projectConsole) {
-        return;
-      }
-      projectConsole.innerHTML = this.logContextArray.join("") || this.defText;
-      //   console.log(this.config.logScroll, this.logContextArray);
-      return projectConsole;
-    },
-    lineFormat(item) {
-      // console.log(item.match(this.regRemove), item.replace(this.regRemove, "$1"));
-      item = item.replace(this.regRemove, "$1").replace(this.regRemove, "$1").replace(this.regRemoveSpan, "$1");
-      // console.log(item);
-      if (this.searchReg) {
-        item = item.replace(this.searchReg, this.regReplaceText);
-      }
-      if (item.match(/error|Exception/i)) {
-        item = "<b style='color:OrangeRed'>" + item + "</b>";
-      } else if (item.match(/WARNING|failed/i)) {
-        item = "<b style='color:orange'>" + item + "</b>";
-      }
-      item = "<span>" + item + "</span>";
-      // console.log(item);
-      return item;
-    },
     clearLogCache() {
-      this.logContextArray = [];
-      this.$nextTick(() => {
-        const projectConsole = document.getElementById(this.domId);
-        projectConsole.innerHTML = this.defText;
-      });
-    },
-    changeBuffer() {
-      // console.log(this.searchReg);
-      this.logContextArray = this.logContextArray.map((item) => this.lineFormat(item));
-      this.$nextTick(() => {
-        this.toHtml();
-      });
+      this.dataArray = [];
     },
   },
 };
 </script>
 
 <style scoped>
-.log-view {
-  padding: 5px;
-  color: #fff;
-  font-size: 14px;
-  background-color: black;
+.log-view-wrapper {
+  background: #292a2b;
+  color: #ffb86c;
+  padding: 10px;
+  box-shadow: inset 0 0 10px 0 #e8e8e8;
+}
+.scroller {
+  height: 100%;
   width: 100%;
-  height: calc(100vh - 120px);
-  overflow-y: auto;
-  border: 1px solid #e2e2e2;
-  border-radius: 5px 5px;
-}
-</style>
+  font-family: Operator Mono, Source Code Pro, Menlo, Monaco, Consolas, Courier New, monospace;
+  position: relative;
 
-<style>
-.log-view span {
-  display: block;
-  counter-increment: line;
+  overflow-y: scroll;
 }
-.log-view span:before {
-  content: counter(line);
-  display: inline-block;
-  padding: 0 5px;
-  /* border-right: 1px solid #e2e2e2; */
-  color: #888;
+/deep/ .vue-recycle-scroller__item-wrapper {
+  white-space: nowrap;
+  /* overflow-x: scroll; */
+  /* 避免滚动条无法固定到底部 */
+  position: unset;
+}
+.item {
+}
+
+.linenumber {
+  color: #e6e6e6;
+  padding-right: 4px;
+  /* border-right: 1px solid #e8e8e8; */
+  opacity: 0.6;
+  /* overflow: auto; */
+  /* white-space: nowrap; */
 }
 </style>

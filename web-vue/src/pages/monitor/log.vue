@@ -5,44 +5,14 @@
     <a-table :data-source="list" size="middle" :columns="columns" :pagination="pagination" bordered :rowKey="(record, index) => index" @change="change">
       <template slot="title">
         <a-space>
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            v-model="listQuery.nodeId"
-            allowClear
-            placeholder="请选择节点"
-            class="search-input-item"
-          >
+          <a-select v-model="listQuery.nodeId" allowClear placeholder="请选择节点" class="search-input-item">
             <a-select-option v-for="(nodeName, key) in nodeMap" :key="key">{{ nodeName }}</a-select-option>
           </a-select>
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            v-model="listQuery.status"
-            allowClear
-            placeholder="报警状态"
-            class="search-input-item"
-          >
+          <a-select v-model="listQuery.status" allowClear placeholder="报警状态" class="search-input-item">
             <a-select-option :value="1">正常</a-select-option>
             <a-select-option :value="0">异常</a-select-option>
           </a-select>
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            v-model="listQuery.notifyStatus"
-            allowClear
-            placeholder="通知状态"
-            class="search-input-item"
-          >
+          <a-select v-model="listQuery.notifyStatus" allowClear placeholder="通知状态" class="search-input-item">
             <a-select-option :value="1">成功</a-select-option>
             <a-select-option :value="0">失败</a-select-option>
           </a-select>
@@ -68,7 +38,7 @@
       </template>
     </a-table>
     <!-- 详情区 -->
-    <a-modal v-model="detailVisible" width="600px" title="详情信息" :footer="null">
+    <a-modal destroyOnClose v-model="detailVisible" width="600px" title="详情信息" :footer="null">
       <a-list item-layout="horizontal" :data-source="detailData">
         <a-list-item slot="renderItem" slot-scope="item">
           <a-list-item-meta :description="item.description">
@@ -80,10 +50,9 @@
   </div>
 </template>
 <script>
-import {getMonitorLogList, notifyStyle} from "@/api/monitor";
-import {getNodeListAll} from "@/api/node";
-import {parseTime} from "@/utils/time";
-import {CHANGE_PAGE, COMPUTED_PAGINATION, PAGE_DEFAULT_LIST_QUERY} from "@/utils/const";
+import { getMonitorLogList, notifyStyle } from "@/api/monitor";
+import { getNodeListAll } from "@/api/node";
+import { CHANGE_PAGE, COMPUTED_PAGINATION, PAGE_DEFAULT_LIST_QUERY, parseTime } from "@/utils/const";
 
 export default {
   data() {

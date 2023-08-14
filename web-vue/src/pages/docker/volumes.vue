@@ -16,7 +16,19 @@
     <a-tooltip slot="CreatedAt" slot-scope="text" placement="topLeft" :title="text['CreatedAt']">
       <span>{{ parseTime(text["CreatedAt"]) }}</span>
     </a-tooltip>
-    <!-- <a-tooltip slot="size" slot-scope="text, record" placement="topLeft" :title="renderSize(text) + ' ' + renderSize(record.virtualSize)">
+    <template slot="name" slot-scope="text, record">
+      <a-popover title="卷标签" v-if="record.labels">
+        <template slot="content">
+          <p v-for="(value, key) in record.labels" :key="key">{{ key }}<a-icon type="arrow-right" />{{ value }}</p>
+        </template>
+        <a-icon type="pushpin" />
+      </a-popover>
+
+      <a-tooltip :title="text">
+        {{ text }}
+      </a-tooltip>
+    </template>
+    <!-- <a-tooltip slot="name" slot-scope="text, record" placement="topLeft" :title="renderSize(text) + ' ' + renderSize(record.virtualSize)">
       <span>{{ renderSize(text) }}</span>
     </a-tooltip> -->
 
@@ -29,15 +41,6 @@
     </a-tooltip>
     <template slot="operation" slot-scope="text, record">
       <a-space>
-        <!-- <a-tooltip title="停止" v-if="record.state === 'running'">
-          <a-button size="small" type="link" @click="doAction(record, 'stop')"><a-icon type="stop" /></a-button>
-        </a-tooltip>
-        <a-tooltip title="启动" v-else>
-          <a-button size="small" type="link" @click="doAction(record, 'start')"> <a-icon type="play-circle" /></a-button>
-        </a-tooltip>
-        <a-tooltip title="重启">
-          <a-button size="small" type="link" :disabled="record.state !== 'running'" @click="doAction(record, 'restart')"><a-icon type="reload" /></a-button>
-        </a-tooltip> -->
         <a-tooltip title="删除">
           <a-button size="small" type="link" @click="doAction(record, 'remove')"><a-icon type="delete" /></a-button>
         </a-tooltip>
@@ -46,11 +49,19 @@
   </a-table>
 </template>
 <script>
-import { renderSize, parseTime } from "@/utils/time";
+import { renderSize, parseTime } from "@/utils/const";
 import { dockerVolumesList, dockerVolumesRemove } from "@/api/docker-api";
 export default {
   props: {
     id: {
+      type: String,
+      default: "",
+    },
+    machineDockerId: {
+      type: String,
+      default: "",
+    },
+    urlPrefix: {
       type: String,
     },
   },
@@ -64,7 +75,7 @@ export default {
       renderSize,
       columns: [
         { title: "序号", width: 80, ellipsis: true, align: "center", customRender: (text, record, index) => `${index + 1}` },
-        { title: "名称", dataIndex: "name", ellipsis: true, scopedSlots: { customRender: "tooltip" } },
+        { title: "名称", dataIndex: "name", ellipsis: true, scopedSlots: { customRender: "name" } },
         { title: "挂载点", dataIndex: "mountpoint", ellipsis: true, scopedSlots: { customRender: "tooltip" } },
         { title: "类型", dataIndex: "driver", ellipsis: true, width: 80, scopedSlots: { customRender: "tooltip" } },
         {
@@ -87,6 +98,11 @@ export default {
       },
     };
   },
+  computed: {
+    reqDataId() {
+      return this.id || this.machineDockerId;
+    },
+  },
   mounted() {
     this.loadData();
   },
@@ -96,8 +112,8 @@ export default {
     loadData() {
       this.loading = true;
       //this.listQuery.page = pointerEvent?.altKey || pointerEvent?.ctrlKey ? 1 : this.listQuery.page;
-      this.listQuery.id = this.id;
-      dockerVolumesList(this.listQuery).then((res) => {
+      this.listQuery.id = this.reqDataId;
+      dockerVolumesList(this.urlPrefix, this.listQuery).then((res) => {
         if (res.code === 200) {
           this.list = res.data;
         }
@@ -117,10 +133,10 @@ export default {
         onOk: () => {
           // 组装参数
           const params = {
-            id: this.id,
+            id: this.reqDataId,
             volumeName: record.name,
           };
-          action.api(params).then((res) => {
+          action.api(this.urlPrefix, params).then((res) => {
             if (res.code === 200) {
               this.$notification.success({
                 message: res.msg,

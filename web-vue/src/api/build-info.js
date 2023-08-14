@@ -7,24 +7,28 @@ import { loadRouterBase } from "./config";
  *  group: 分组名称
  * } params
  */
-export function getBuildList(params) {
+export function getBuildList(params, loading) {
   return axios({
     url: "/build/list",
     method: "post",
     data: params,
+    headers: {
+      loading: loading === false ? "no" : "",
+    },
   });
 }
 
 /**
- * 构建列表
+ * 构建详情
  * @param {
- *  group: 分组名称
+ *
  * } params
  */
-export function getBuildListAll() {
+export function getBuildGet(params) {
   return axios({
-    url: "/build/list_all",
+    url: "/build/get",
     method: "get",
+    params,
   });
 }
 
@@ -88,6 +92,7 @@ export function editBuild(params) {
     webhook: params.webhook,
     autoBuildCron: params.autoBuildCron,
     buildMode: params.buildMode,
+    aliasCode: params.aliasCode,
   };
   return axios({
     url: "/build/edit",
@@ -112,25 +117,25 @@ export function deleteBuild(id) {
  * 获取触发器地址
  * @param {*} id
  */
-export function getTriggerUrl(id) {
+export function getTriggerUrl(data) {
   return axios({
     url: "/build/trigger/url",
     method: "post",
-    data: { id },
+    data: data,
   });
 }
 
-/**
- * 重置触发器
- * @param {*} id
- */
-export function resetTrigger(id) {
-  return axios({
-    url: "/build/trigger/rest",
-    method: "post",
-    data: { id },
-  });
-}
+// /**
+//  * 重置触发器
+//  * @param {*} id
+//  */
+// export function resetTrigger(id) {
+//   return axios({
+//     url: "/build/trigger/rest",
+//     method: "post",
+//     data: { id },
+//   });
+// }
 
 /**
  * 清理构建
@@ -224,6 +229,17 @@ export function downloadBuildFile(logId) {
 }
 
 /**
+ * 下载构建产物
+ * @param {*} logId
+ */
+export function downloadBuildFileByBuild(id, numberId) {
+  return loadRouterBase("/build/history/download_file_by_build", {
+    buildId: id,
+    buildNumberId: numberId,
+  });
+}
+
+/**
  * 回滚（重新发布）
  * @param {*} logId
  * @returns
@@ -248,6 +264,14 @@ export function deleteBuildHistory(logId) {
   });
 }
 
+export function sortItem(params) {
+  return axios({
+    url: "/build/sort-item",
+    method: "get",
+    params: params,
+  });
+}
+
 export const statusMap = {
   1: "构建中",
   2: "构建完成",
@@ -256,6 +280,21 @@ export const statusMap = {
   5: "发布成功",
   6: "发布失败",
   7: "取消构建",
+  8: "构建中断",
+  9: "队列等待",
+  10: "异常关闭",
+};
+export const statusColor = {
+  1: "orange",
+  2: "green",
+  3: "red",
+  4: "orange",
+  5: "green",
+  6: "red",
+  7: "",
+  8: "blue",
+  9: "orange",
+  10: "red",
 };
 
 export const releaseMethodMap = {

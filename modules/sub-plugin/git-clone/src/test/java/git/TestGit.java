@@ -23,7 +23,9 @@
 package git;
 
 import cn.hutool.core.io.FileUtil;
-import io.jpom.plugin.GitUtil;
+import cn.hutool.core.net.url.UrlBuilder;
+import cn.hutool.core.util.StrUtil;
+import org.dromara.jpom.plugin.JGitUtil;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.ListBranchCommand;
 import org.eclipse.jgit.api.errors.GitAPIException;
@@ -37,14 +39,11 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.net.URISyntaxException;
+import java.net.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * @author bwcx_jzy
@@ -134,7 +133,7 @@ public class TestGit {
         map.put("password", "a");
 
 
-        GitUtil.checkoutPullTag(map, file, branchName, tagName, printWriter);
+        JGitUtil.checkoutPullTag(map, file, tagName, printWriter);
 
         //GitUtil.checkoutPull(uri, file, branchName, credentialsProvider, printWriter);
 
@@ -164,11 +163,36 @@ public class TestGit {
 //        repositoryModel.setRepoType(0);
 //        repositoryModel.setUserName("a");
 //        repositoryModel.setPassword("a");
-        String msg = GitUtil.checkoutPullTag(map, file, branchName, tagName, printWriter);
-        System.out.println(msg);
+        String[] msg = JGitUtil.checkoutPullTag(map, file, tagName, printWriter);
+        System.out.println(Arrays.toString(msg));
         //GitUtil.checkoutPull(uri, file, branchName, credentialsProvider, printWriter);
 
 
+    }
+
+    @Test
+    public void testUrl() throws MalformedURLException {
+        String url = "https://12:222@gitee.com/keepbx/Jpom-demo-case.git";
+        UrlBuilder urlBuilder = UrlBuilder.of(url);
+        URL url2 = new URL(url);
+        System.out.println(url2);
+        URL url1 = new URL(null, "https://gitee.com/keepbx/Jpom-demo-case.git", new URLStreamHandler() {
+            @Override
+            protected URLConnection openConnection(URL u) throws IOException {
+                return null;
+            }
+
+            @Override
+            protected void setURL(URL u, String protocol, String host, int port, String authority, String userInfo, String path, String query, String ref) {
+                System.out.println(userInfo);
+                String userInfo1 = "abc:321";
+                super.setURL(u, protocol, host, port, StrUtil.format("{}@{}", userInfo1, authority), userInfo1, path, query, ref);
+                System.out.println(u);
+            }
+        });
+        System.out.println(url1);
+        URL url3 = new URL("git@gitee.com:dromara/Jpom.git");
+        System.out.println(url3);
     }
 
 }

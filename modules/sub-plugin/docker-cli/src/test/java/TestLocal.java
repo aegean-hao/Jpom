@@ -24,9 +24,8 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.LoggerContext;
 import cn.hutool.core.io.unit.DataSizeUtil;
-import cn.hutool.json.JSONUtil;
-import com.alibaba.fastjson.JSONObject;
-import com.alibaba.fastjson.serializer.SerializerFeature;
+import com.alibaba.fastjson2.JSONObject;
+import com.alibaba.fastjson2.JSONWriter;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.*;
 import com.github.dockerjava.api.model.*;
@@ -36,7 +35,7 @@ import com.github.dockerjava.core.DockerClientImpl;
 import com.github.dockerjava.core.InvocationBuilder;
 import com.github.dockerjava.httpclient5.ApacheDockerHttpClient;
 import com.github.dockerjava.transport.DockerHttpClient;
-import io.jpom.DockerUtil;
+import org.dromara.jpom.DockerUtil;
 import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.LoggerFactory;
@@ -60,6 +59,7 @@ public class TestLocal {
         logger.setLevel(Level.INFO);
 
         DockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder()
+            .withRegistryUsername(null)
             // .withDockerHost("tcp://192.168.163.11:2376").build();
 //				.withApiVersion()
 //            .withDockerHost("tcp://127.0.0.1:2375")
@@ -96,7 +96,7 @@ public class TestLocal {
         StatsCmd statsCmd = dockerClient.statsCmd("socat");
         Statistics statistics = statsCmd.exec(new InvocationBuilder.AsyncResultCallback<>()).awaitResult();
         System.out.println(statistics);
-        System.out.println(JSONUtil.toJsonStr(statistics));
+        System.out.println(JSONObject.toJSONString(statistics));
     }
 
     @Test
@@ -129,7 +129,7 @@ public class TestLocal {
     public void test4() {
         InspectContainerCmd socat = dockerClient.inspectContainerCmd("socat").withSize(true);
         InspectContainerResponse exec = socat.exec();
-        System.out.println(JSONObject.toJSONString(exec.getHostConfig(), SerializerFeature.PrettyFormat));
+        System.out.println(JSONObject.toJSONString(exec.getHostConfig(), JSONWriter.Feature.PrettyFormat));
     }
 
     @Test

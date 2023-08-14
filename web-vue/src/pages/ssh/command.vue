@@ -44,26 +44,27 @@
 
       <template slot="operation" slot-scope="text, record">
         <a-space>
-          <a-button size="small" type="primary" @click="handleEdit(record)">编辑</a-button>
           <a-button size="small" type="primary" @click="handleExecute(record)">执行</a-button>
+          <a-button size="small" type="primary" @click="handleEdit(record)">编辑</a-button>
+          <a-button size="small" type="primary" @click="handleTrigger(record)">触发器</a-button>
           <a-button size="small" type="danger" @click="handleDelete(record)">删除</a-button>
         </a-space>
       </template>
     </a-table>
     <!-- 编辑命令 -->
-    <a-modal v-model="editCommandVisible" width="80vw" title="编辑 命令" @ok="handleEditCommandOk" :maskClosable="false">
+    <a-modal destroyOnClose v-model="editCommandVisible" width="80vw" title="编辑 命令" @ok="handleEditCommandOk" :maskClosable="false">
       <a-form-model ref="editCommandForm" :rules="rules" :model="temp" :label-col="{ span: 3 }" :wrapper-col="{ span: 20 }">
         <a-form-model-item label="命令名称" prop="name">
           <a-input v-model="temp.name" :maxLength="100" placeholder="命令名称" />
         </a-form-model-item>
 
-        <a-form-model-item prop="command">
+        <a-form-model-item prop="command" help="脚本存放路径：${user.home}/.jpom/xxxx.sh，执行脚本路径：${user.home}，执行脚本方式：bash ${user.home}/.jpom/xxxx.sh par1 par2">
           <template slot="label">
             命令内容
             <a-tooltip v-show="!temp.id">
               <template slot="title">
                 <ul>
-                  <li>可以引用工作空间的环境变量 变量占位符 #{xxxx} xxxx 为变量名称</li>
+                  <li>可以引用工作空间的环境变量 变量占位符 ${xxxx} xxxx 为变量名称</li>
                 </ul>
               </template>
               <a-icon type="question-circle" theme="filled" />
@@ -74,18 +75,7 @@
           </div>
         </a-form-model-item>
         <a-form-model-item label="SSH节点">
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            show-search
-            option-filter-prop="children"
-            placeholder="请选择SSH节点"
-            mode="multiple"
-            v-model="chooseSsh"
-          >
+          <a-select show-search option-filter-prop="children" placeholder="请选择SSH节点" mode="multiple" v-model="chooseSsh">
             <a-select-option v-for="item in sshList" :key="item.id" :value="item.id">
               {{ item.name }}
             </a-select-option>
@@ -93,17 +83,24 @@
         </a-form-model-item>
 
         <a-form-model-item label="默认参数">
-          <div class="params-item" v-for="(item, index) in commandParams" :key="item.key">
-            <div class="item-info">
-              <a-input addon-before="参数值" v-model="item.value" placeholder="参数值" />
-              <a-input addon-before="描述" v-model="item.desc" placeholder="参数描述" />
-            </div>
-            <div class="item-icon" @click="handleDeleteParam(index)">
-              <a-icon type="minus-circle" style="color: #ff0000" />
-            </div>
+          <div v-for="(item, index) in commandParams" :key="item.key">
+            <a-row type="flex" justify="center" align="middle">
+              <a-col :span="22">
+                <a-input :addon-before="`参数${index + 1}描述`" v-model="item.desc" placeholder="参数描述,参数描述没有实际作用,仅是用于提示参数的含义" />
+                <a-input :addon-before="`参数${index + 1}值`" v-model="item.value" placeholder="参数值,添加默认参数后在手动执行脚本时需要填写参数值" />
+              </a-col>
+              <a-col :span="2">
+                <a-row type="flex" justify="center" align="middle">
+                  <a-col>
+                    <a-icon @click="() => commandParams.splice(index, 1)" type="minus-circle" style="color: #ff0000" />
+                  </a-col>
+                </a-row>
+              </a-col>
+            </a-row>
+            <a-divider style="margin: 5px 0" />
           </div>
 
-          <a-button type="primary" @click="handleAddParam">添加参数</a-button>
+          <a-button type="primary" @click="() => commandParams.push({})">添加参数</a-button>
         </a-form-model-item>
         <a-form-model-item label="自动执行" prop="autoExecCron">
           <a-auto-complete v-model="temp.autoExecCron" placeholder="如果需要定时自动执行则填写,cron 表达式.默认未开启秒级别,需要去修改配置文件中:[system.timerMatchSecond]）" option-label-prop="value">
@@ -123,50 +120,50 @@
       </a-form-model>
     </a-modal>
 
-    <a-modal v-model="executeCommandVisible" width="600px" title="执行 命令" @ok="handleExecuteCommandOk" :maskClosable="false">
+    <a-modal destroyOnClose v-model="executeCommandVisible" width="600px" title="执行 命令" @ok="handleExecuteCommandOk" :maskClosable="false">
       <a-form-model :model="temp" :label-col="{ span: 4 }" :wrapper-col="{ span: 18 }">
         <a-form-model-item label="命令名称" prop="name">
           <a-input v-model="temp.name" :disabled="true" placeholder="命令名称" />
         </a-form-model-item>
 
         <a-form-model-item label="SSH节点" required>
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            show-search
-            option-filter-prop="children"
-            mode="multiple"
-            v-model="chooseSsh"
-          >
+          <a-select show-search option-filter-prop="children" mode="multiple" v-model="chooseSsh" placeholder="请选择 SSH节点">
             <a-select-option v-for="item in sshList" :key="item.id" :value="item.id">
               {{ item.name }}
             </a-select-option>
           </a-select>
         </a-form-model-item>
 
-        <a-form-model-item label="命令参数">
-          <div v-for="item in commandParams" :key="item.key">
-            <div class="item-info">
-              <a-input addon-before="参数值" v-model="item.value" placeholder="参数值" />
-              <a-input addon-before="描述" v-model="item.desc" placeholder="参数描述" />
-            </div>
-            <div class="item-icon" @click="handleDeleteParam(index)">
-              <a-icon type="minus-circle" style="color: #ff0000" />
-            </div>
-          </div>
-          <a-button type="primary" @click="handleAddParam">添加参数</a-button>
+        <a-form-model-item label="命令参数" :help="`${commandParams.length ? '所有参数将拼接成字符串以空格分隔形式执行脚本,需要注意参数顺序和未填写值的参数将自动忽略' : ''}`">
+          <a-row v-for="(item, index) in commandParams" :key="item.key">
+            <a-col :span="22">
+              <a-input :addon-before="`参数${index + 1}值`" v-model="item.value" :placeholder="`参数值 ${item.desc ? ',' + item.desc : ''}`">
+                <template slot="suffix">
+                  <a-tooltip v-if="item.desc" :title="item.desc">
+                    <a-icon type="info-circle" style="color: rgba(0, 0, 0, 0.45)" />
+                  </a-tooltip>
+                </template>
+              </a-input>
+            </a-col>
+
+            <a-col v-if="!item.desc" :span="2">
+              <a-row type="flex" justify="center" align="middle">
+                <a-col>
+                  <a-icon type="minus-circle" style="color: #ff0000" @click="() => commandParams.splice(index, 1)" />
+                </a-col>
+              </a-row>
+            </a-col>
+          </a-row>
+          <a-button type="primary" @click="() => commandParams.push({})">添加参数</a-button>
         </a-form-model-item>
       </a-form-model>
     </a-modal>
-    <!-- 构建日志 -->
-    <a-modal :width="'80vw'" v-model="logVisible" title="执行日志" :footer="null" :maskClosable="false">
+    <!-- 执行日志 -->
+    <a-modal destroyOnClose :width="'80vw'" v-model="logVisible" title="执行日志" :footer="null" :maskClosable="false">
       <command-log v-if="logVisible" :temp="temp" />
     </a-modal>
     <!-- 同步到其他工作空间 -->
-    <a-modal v-model="syncToWorkspaceVisible" title="同步到其他工作空间" @ok="handleSyncToWorkspace" :maskClosable="false">
+    <a-modal destroyOnClose v-model="syncToWorkspaceVisible" title="同步到其他工作空间" @ok="handleSyncToWorkspace" :maskClosable="false">
       <a-alert message="温馨提示" type="warning">
         <template slot="description">
           <ul>
@@ -179,34 +176,90 @@
       <a-form-model :model="temp" :label-col="{ span: 6 }" :wrapper-col="{ span: 14 }">
         <a-form-model-item> </a-form-model-item>
         <a-form-model-item label="选择工作空间" prop="workspaceId">
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            show-search
-            option-filter-prop="children"
-            v-model="temp.workspaceId"
-            placeholder="请选择工作空间"
-          >
+          <a-select show-search option-filter-prop="children" v-model="temp.workspaceId" placeholder="请选择工作空间">
             <a-select-option :disabled="getWorkspaceId === item.id" v-for="item in workspaceList" :key="item.id">{{ item.name }}</a-select-option>
           </a-select>
         </a-form-model-item>
+      </a-form-model>
+    </a-modal>
+
+    <!-- 触发器 -->
+    <a-modal destroyOnClose v-model="triggerVisible" title="触发器" width="50%" :footer="null" :maskClosable="false">
+      <a-form-model ref="editTriggerForm" :rules="rules" :model="temp" :label-col="{ span: 6 }" :wrapper-col="{ span: 16 }">
+        <a-tabs default-active-key="1">
+          <template slot="tabBarExtraContent">
+            <a-tooltip title="重置触发器 token 信息,重置后之前的触发器 token 将失效">
+              <a-button type="primary" size="small" @click="resetTrigger">重置</a-button>
+            </a-tooltip>
+          </template>
+          <a-tab-pane key="1" tab="执行">
+            <a-space style="display: block" direction="vertical" align="baseline">
+              <a-alert message="温馨提示" type="warning">
+                <template slot="description">
+                  <ul>
+                    <li>单个触发器地址中：第一个随机字符串为命令脚本ID，第二个随机字符串为 token</li>
+                    <li>重置为重新生成触发地址,重置成功后之前的触发器地址将失效,触发器绑定到生成触发器到操作人上,如果将对应的账号删除触发器将失效</li>
+                    <li>批量触发参数 BODY json： [ { "id":"1", "token":"a" } ]</li>
+                  </ul>
+                </template>
+              </a-alert>
+              <a-alert
+                v-clipboard:copy="temp.triggerUrl"
+                v-clipboard:success="
+                  () => {
+                    tempVue.prototype.$notification.success({ message: '复制成功' });
+                  }
+                "
+                v-clipboard:error="
+                  () => {
+                    tempVue.prototype.$notification.error({ message: '复制失败' });
+                  }
+                "
+                type="info"
+                :message="`单个触发器地址(点击可以复制)`"
+              >
+                <template slot="description">
+                  <a-tag>GET</a-tag> <span>{{ temp.triggerUrl }} </span>
+                  <a-icon type="copy" />
+                </template>
+              </a-alert>
+              <a-alert
+                v-clipboard:copy="temp.batchTriggerUrl"
+                v-clipboard:success="
+                  () => {
+                    tempVue.prototype.$notification.success({ message: '复制成功' });
+                  }
+                "
+                v-clipboard:error="
+                  () => {
+                    tempVue.prototype.$notification.error({ message: '复制失败' });
+                  }
+                "
+                type="info"
+                :message="`批量触发器地址(点击可以复制)`"
+              >
+                <template slot="description">
+                  <a-tag>POST</a-tag> <span>{{ temp.batchTriggerUrl }} </span>
+                  <a-icon type="copy" />
+                </template>
+              </a-alert>
+            </a-space>
+          </a-tab-pane>
+        </a-tabs>
       </a-form-model>
     </a-modal>
   </div>
 </template>
 
 <script>
-import {deleteCommand, editCommand, executeBatch, getCommandList, syncToWorkspace} from "@/api/command";
-import {CHANGE_PAGE, COMPUTED_PAGINATION, CRON_DATA_SOURCE, PAGE_DEFAULT_LIST_QUERY} from "@/utils/const";
-import {parseTime} from "@/utils/time";
-import {getSshListAll} from "@/api/ssh";
+import { deleteCommand, editCommand, executeBatch, getCommandList, syncToWorkspace, getTriggerUrl } from "@/api/command";
+import { CHANGE_PAGE, COMPUTED_PAGINATION, CRON_DATA_SOURCE, PAGE_DEFAULT_LIST_QUERY, parseTime } from "@/utils/const";
+import { getSshListAll } from "@/api/ssh";
 import codeEditor from "@/components/codeEditor";
 import CommandLog from "./command-view-log";
-import {mapGetters} from "vuex";
-import {getWorkSpaceListAll} from "@/api/workspace";
+import { mapGetters } from "vuex";
+import { getWorkSpaceListAll } from "@/api/workspace";
+import Vue from "vue";
 
 export default {
   components: { codeEditor, CommandLog },
@@ -228,9 +281,9 @@ export default {
         command: [{ required: true, message: "Please input command", trigger: "blur" }],
       },
       columns: [
-        { title: "命令名称", dataIndex: "name", ellipsis: true, scopedSlots: { customRender: "name" } },
-        { title: "命令描述", dataIndex: "desc", ellipsis: true, scopedSlots: { customRender: "desc" } },
-        { title: "定时执行", dataIndex: "autoExecCron", ellipsis: true, scopedSlots: { customRender: "autoExecCron" } },
+        { title: "命令名称", dataIndex: "name", ellipsis: true, width: 200, scopedSlots: { customRender: "name" } },
+        { title: "命令描述", dataIndex: "desc", ellipsis: true, width: 250, scopedSlots: { customRender: "desc" } },
+        { title: "定时执行", dataIndex: "autoExecCron", ellipsis: true, width: 120, scopedSlots: { customRender: "autoExecCron" } },
         {
           title: "创建时间",
           dataIndex: "createTimeMillis",
@@ -239,12 +292,12 @@ export default {
           customRender: (text) => {
             return parseTime(text);
           },
-          width: 170,
+          width: "170px",
         },
         {
           title: "修改时间",
           dataIndex: "modifyTimeMillis",
-          width: 170,
+          width: "170px",
           ellipsis: true,
           sorter: true,
           customRender: (text) => {
@@ -258,11 +311,12 @@ export default {
           ellipsis: true,
           scopedSlots: { customRender: "modifyUser" },
         },
-        { title: "操作", dataIndex: "operation", align: "center", scopedSlots: { customRender: "operation" }, width: 180 },
+        { title: "操作", dataIndex: "operation", align: "center", scopedSlots: { customRender: "operation" }, fixed: "right", width: "240px" },
       ],
       tableSelections: [],
       syncToWorkspaceVisible: false,
       workspaceList: [],
+      triggerVisible: false,
     };
   },
   computed: {
@@ -292,6 +346,14 @@ export default {
         }
         this.formLoading = true;
         if (this.commandParams && this.commandParams.length > 0) {
+          for (let i = 0; i < this.commandParams.length; i++) {
+            if (!this.commandParams[i].desc) {
+              this.$notification.error({
+                message: "请填写第" + (i + 1) + "个参数的描述",
+              });
+              return false;
+            }
+          }
           this.temp.defParams = JSON.stringify(this.commandParams);
         } else {
           this.temp.defParams = "";
@@ -333,11 +395,13 @@ export default {
       this.editCommandVisible = true;
       this.getAllSSHList();
       this.chooseSsh = [];
+      this.commandParams = [];
       this.temp = {};
       this.$refs["editCommandForm"] && this.$refs["editCommandForm"].resetFields();
     },
     // 修改
-    handleEdit(row) {
+    handleEdit(rowData) {
+      const row = Object.assign({}, rowData);
       this.editCommandVisible = true;
       this.$refs["editCommandForm"] && this.$refs["editCommandForm"].resetFields();
       this.commandParams = [];
@@ -349,7 +413,8 @@ export default {
       this.getAllSSHList();
     },
     // 执行命令
-    handleExecute(row) {
+    handleExecute(rowData) {
+      const row = Object.assign({}, rowData);
       if (typeof row.defParams === "string" && row.defParams) {
         this.commandParams = JSON.parse(row.defParams);
       } else {
@@ -386,19 +451,7 @@ export default {
         this.sshList = res.data || [];
       });
     },
-    // 添加命令参数
-    handleAddParam() {
-      this.commandParams.push({});
-    },
-    // 删除命令参数
-    handleDeleteParam(index) {
-      this.commandParams.splice(index, 1);
-    },
-    handleParamChange(check) {
-      if (!check) {
-        this.commandParams = [];
-      }
-    },
+
     handleExecuteCommandOk() {
       if (!this.chooseSsh || this.chooseSsh.length <= 0) {
         this.$notification.error({
@@ -452,9 +505,9 @@ export default {
       // 同步
       syncToWorkspace({
         ids: this.tableSelections.join(","),
-        workspaceId: this.temp.workspaceId,
+        toWorkspaceId: this.temp.workspaceId,
       }).then((res) => {
-        if (res.code == 200) {
+        if (res.code === 200) {
           this.$notification.success({
             message: res.msg,
           });
@@ -464,6 +517,39 @@ export default {
         }
       });
     },
+    // 触发器
+    handleTrigger(record) {
+      this.temp = Object.assign({}, record);
+      this.tempVue = Vue;
+      getTriggerUrl({
+        id: record.id,
+      }).then((res) => {
+        if (res.code === 200) {
+          this.fillTriggerResult(res);
+          this.triggerVisible = true;
+        }
+      });
+    },
+    // 重置触发器
+    resetTrigger() {
+      getTriggerUrl({
+        id: this.temp.id,
+        rest: "rest",
+      }).then((res) => {
+        if (res.code === 200) {
+          this.$notification.success({
+            message: res.msg,
+          });
+          this.fillTriggerResult(res);
+        }
+      });
+    },
+    fillTriggerResult(res) {
+      this.temp.triggerUrl = `${location.protocol}//${location.host}${res.data.triggerUrl}`;
+      this.temp.batchTriggerUrl = `${location.protocol}//${location.host}${res.data.batchTriggerUrl}`;
+
+      this.temp = { ...this.temp };
+    },
   },
 };
 </script>
@@ -471,23 +557,5 @@ export default {
 .config-editor {
   overflow-y: scroll;
   max-height: 300px;
-}
-
-.params-item {
-  display: flex;
-  align-items: center;
-  border-bottom: 1px #e2e2e2 solid;
-  padding-bottom: 5px;
-}
-
-.item-info {
-  display: inline-block;
-  width: 90%;
-}
-
-.item-icon {
-  display: inline-block;
-  width: 10%;
-  text-align: center;
 }
 </style>

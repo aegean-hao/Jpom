@@ -2,9 +2,10 @@
  * 路由鉴权
  * 比如某些路由必须要登录
  */
-import {notification} from "ant-design-vue";
+// import { notification } from "ant-design-vue";
 import router from "./index";
 import store from "../store/index";
+import Qs from "qs";
 
 // 不需要鉴权的名单
 const whiteList = ["/login", "/install", "/system/ipAccess"];
@@ -19,26 +20,71 @@ router.beforeEach((to, from, next) => {
   // 判断 token 是否存在
   if (!store.getters.getToken) {
     if (from.path !== "/") {
-      notification.error({
-        message: "未登录，无法访问！",
-        description: `from: ${from.path} ==> to: ${to.path}`,
-      });
+      // notification.error({
+      //   message: "未登录，无法访问！",
+      //   description: `from: ${from.path} ==> to: ${to.path}`,
+      // });
+      console.warn(`from: ${from.path} ==> to: ${to.path}`);
     }
-    next("/login");
+    next({
+      path: "/login",
+      query: from.query,
+      replace: true,
+    });
     return;
   }
-
+  // 如果存在 token (已经登录)
+  // 刷新用户信息
+  store.dispatch("pageReloadRefreshUserInfo");
+  // 没有 tabs 独立页面
   if (noTabs.indexOf(to.path) !== -1) {
     next();
     return;
   }
-  // 如果存在 token (已经登录)
-  store.dispatch("loadSystemMenus").then(() => {
-    // 存储 store
-    store.dispatch("addTab", { key: to.name, path: to.path }).then((toMenu) => {
-      toMenu ? next(toMenu.path) : next();
-    });
-  });
+  if (to.meta?.mode === "management") {
+    // 刷新菜单
+    store
+      .dispatch("loadManagementSystemMenus")
+      .then(() => {
+        // 存储 store
+        store.dispatch("addManagementTab", { key: to.name, path: to.path }).then((toMenu) => {
+          toMenu ? next(toMenu.path) : next();
+        });
+      })
+      .catch(() => {
+        next({
+          path: "/",
+          replace: true,
+        });
+      });
+  } else {
+    // 刷新菜单
+    store
+      .dispatch("loadSystemMenus")
+      .then(() => {
+        // 存储 store
+        store.dispatch("addTab", { key: to.name, path: to.path }).then((toMenu) => {
+          toMenu ? next(toMenu.path) : next();
+        });
+      })
+      .catch(() => {
+        next({
+          path: "/",
+          replace: true,
+        });
+      });
+  }
+});
+
+router.afterEach((to) => {
+  store.dispatch("showInfo", to);
+  const params = Qs.parse(location.search.substring(1));
+  if (Object.keys(params).length) {
+    //地址栏参数转 hash 参数
+    const paramsStr = Qs.stringify(Object.assign({}, params, to.query));
+    //console.error(`${location.origin}${location.pathname}#${to.path}?${paramsStr}`);
+    location.href = `${location.origin}${location.pathname}#${to.path}?${paramsStr}`;
+  }
 });
 
 // https://www.jb51.net/article/242702.htm

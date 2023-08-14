@@ -4,64 +4,16 @@
     <a-table size="middle" :data-source="list" :columns="columns" :pagination="pagination" bordered :rowKey="(record, index) => index" @change="change">
       <template slot="title">
         <a-space>
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            show-search
-            option-filter-prop="children"
-            v-model="listQuery.userId"
-            allowClear
-            placeholder="请选择操作者"
-            class="search-input-item"
-          >
+          <a-select show-search option-filter-prop="children" v-model="listQuery.userId" allowClear placeholder="请选择操作者" class="search-input-item">
             <a-select-option v-for="item in userList" :key="item.id">{{ item.name }}</a-select-option>
           </a-select>
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            show-search
-            option-filter-prop="children"
-            v-model="listQuery.nodeId"
-            allowClear
-            placeholder="请选择节点"
-            class="search-input-item"
-          >
+          <a-select show-search option-filter-prop="children" v-model="listQuery.nodeId" allowClear placeholder="请选择节点" class="search-input-item">
             <a-select-option v-for="node in nodeList" :key="node.id">{{ node.name }}</a-select-option>
           </a-select>
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            show-search
-            option-filter-prop="children"
-            v-model="listQuery.classFeature"
-            allowClear
-            placeholder="操作功能"
-            class="search-input-item"
-          >
+          <a-select show-search option-filter-prop="children" v-model="listQuery.classFeature" allowClear placeholder="操作功能" class="search-input-item">
             <a-select-option v-for="item in classFeature" :key="item.value">{{ item.title }}</a-select-option>
           </a-select>
-          <a-select
-            :getPopupContainer="
-              (triggerNode) => {
-                return triggerNode.parentNode || document.body;
-              }
-            "
-            show-search
-            option-filter-prop="children"
-            v-model="listQuery.methodFeature"
-            allowClear
-            placeholder="操作方法"
-            class="search-input-item"
-          >
+          <a-select show-search option-filter-prop="children" v-model="listQuery.methodFeature" allowClear placeholder="操作方法" class="search-input-item">
             <a-select-option v-for="item in methodFeature" :key="item.value">{{ item.title }}</a-select-option>
           </a-select>
           <a-range-picker class="search-input-item" :show-time="{ format: 'HH:mm:ss' }" format="YYYY-MM-DD HH:mm:ss" @change="onchangeTime" />
@@ -82,6 +34,11 @@
       <a-tooltip slot="tooltip" slot-scope="text" placement="topLeft" :title="text">
         <span>{{ text }}</span>
       </a-tooltip>
+
+      <a-tooltip slot="username" slot-scope="text, item" placement="topLeft" :title="text">
+        <span>{{ text || item.userId }}</span>
+      </a-tooltip>
+
       <a-tooltip slot="optStatus" slot-scope="text" placement="topLeft" :title="`默认状态码为 200 表示执行成功,部分操作状态码可能为 0,状态码为 0 的操作大部分为没有操作结果或者异步执行`">
         <span>{{ text }}</span>
       </a-tooltip>
@@ -91,7 +48,7 @@
       </template>
     </a-table>
     <!-- 详情区 -->
-    <a-modal v-model="detailVisible" width="600px" title="详情信息" :footer="null">
+    <a-modal destroyOnClose v-model="detailVisible" width="600px" title="详情信息" :footer="null">
       <a-list item-layout="horizontal" :data-source="detailData">
         <a-list-item slot="renderItem" slot-scope="item">
           <div v-if="item.json">
@@ -107,13 +64,12 @@
   </div>
 </template>
 <script>
-import {getOperationLogList} from "@/api/operation-log";
-import {getMonitorOperateTypeList} from "@/api/monitor";
-import {getNodeListAll} from "@/api/node";
-import {getUserListAll} from "@/api/user";
-import {parseTime} from "@/utils/time";
+import { getOperationLogList } from "@/api/operation-log";
+import { getMonitorOperateTypeList } from "@/api/monitor";
+import { getNodeListAll } from "@/api/node";
+import { getUserListAll } from "@/api/user/user";
 import JsonViewer from "vue-json-viewer";
-import {CHANGE_PAGE, COMPUTED_PAGINATION, PAGE_DEFAULT_LIST_QUERY} from "@/utils/const";
+import { CHANGE_PAGE, COMPUTED_PAGINATION, PAGE_DEFAULT_LIST_QUERY, parseTime } from "@/utils/const";
 
 export default {
   components: { JsonViewer },
@@ -133,10 +89,12 @@ export default {
       detailVisible: false,
       detailData: [],
       columns: [
-        { title: "操作者", dataIndex: "userId" },
+        { title: "操作者", dataIndex: "username", ellipsis: true, scopedSlots: { customRender: "username" } },
         { title: "IP", dataIndex: "ip" /*width: 130*/ },
         { title: "节点", dataIndex: "nodeId", width: 120, ellipsis: true, scopedSlots: { customRender: "nodeId" } },
-        { title: "数据 ID", dataIndex: "dataId", /*width: 240,*/ ellipsis: true, scopedSlots: { customRender: "tooltip" } },
+        { title: "数据名称", dataIndex: "dataName", /*width: 240,*/ ellipsis: true, scopedSlots: { customRender: "tooltip" } },
+        { title: "工作空间名", dataIndex: "workspaceName", /*width: 240,*/ ellipsis: true, scopedSlots: { customRender: "tooltip" } },
+        // { title: "数据 ID", dataIndex: "dataId", /*width: 240,*/ ellipsis: true, scopedSlots: { customRender: "tooltip" } },
         { title: "操作功能", dataIndex: "classFeature", /*width: 240,*/ ellipsis: true, scopedSlots: { customRender: "classFeature" } },
         { title: "操作方法", dataIndex: "methodFeature", /*width: 240,*/ ellipsis: true, scopedSlots: { customRender: "methodFeature" } },
         { title: "状态码", dataIndex: "optStatus", width: 90, scopedSlots: { customRender: "optStatus" } },
@@ -147,7 +105,7 @@ export default {
           customRender: (text, item) => {
             return parseTime(text || item.optTime);
           },
-          width: 160,
+          width: "170px",
         },
         { title: "操作", align: "center", dataIndex: "operation", scopedSlots: { customRender: "operation" }, width: 80 },
       ],
@@ -231,6 +189,7 @@ export default {
       } catch (e) {
         console.error(e);
       }
+      this.detailData.push({ title: "数据Id", description: this.temp.dataId });
       this.detailData.push({ title: "浏览器标识", description: this.temp.userAgent });
       this.detailData.push({ title: "请求参数", json: true, value: this.temp.reqData });
       this.detailData.push({ title: "响应结果", json: true, value: this.temp.resultMsg });

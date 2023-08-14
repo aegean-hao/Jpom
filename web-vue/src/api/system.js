@@ -1,4 +1,5 @@
 import axios from "./config";
+import { loadRouterBase } from "./config";
 
 /**
  * 日志列表
@@ -18,12 +19,7 @@ export function getLogList(params) {
  * @param {nodeId, path} params
  */
 export function downloadFile(params) {
-  return axios({
-    url: "/system/log_download",
-    method: "get",
-    responseType: "blob",
-    params,
-  });
+  return loadRouterBase("/system/log_download", params);
 }
 
 /**
@@ -76,14 +72,28 @@ export function clearCache(params) {
 }
 
 /**
+ * 清理错误工作空间的数据
+ *
+ */
+export function clearErrorWorkspace(params) {
+  return axios({
+    url: "/system/clear-error-workspace",
+    method: "get",
+
+    headers: {},
+    params,
+  });
+}
+
+/**
  * 加载配置数据
  * @param {String} nodeId 节点 ID，若为空表示加载 Server 端配置
  */
-export function getConfigData(nodeId) {
+export function getConfigData(data) {
   return axios({
     url: "/system/config-data",
     method: "post",
-    data: { nodeId },
+    data: data,
   });
 }
 
@@ -139,6 +149,22 @@ export function getMailConfigData() {
   });
 }
 
+export function oauthConfigOauth2(params) {
+  return axios({
+    url: "/system/oauth-config/oauth2",
+    method: "get",
+    params,
+  });
+}
+
+export function oauthConfigOauth2Save(params) {
+  return axios({
+    url: "/system/oauth-config/oauth2-save",
+    method: "post",
+    data: params,
+  });
+}
+
 /**
  * 编辑配置
  * @param {
@@ -163,7 +189,7 @@ export function editMailConfig(params) {
  * 系统程序信息
  * @param {String} nodeId 节点 ID
  */
-export function systemInfo(nodeId) {
+export function systemInfo(data) {
   return axios({
     url: "/system/info",
     method: "post",
@@ -171,7 +197,7 @@ export function systemInfo(nodeId) {
       tip: "no",
       loading: "no",
     },
-    data: { nodeId },
+    data,
   });
 }
 
@@ -184,9 +210,10 @@ export function systemInfo(nodeId) {
  */
 export function uploadUpgradeFile(formData) {
   return axios({
-    url: "/system/uploadJar.json",
+    url: "/system/upload-jar-sharding",
     headers: {
       "Content-Type": "multipart/form-data;charset=UTF-8",
+      loading: "no",
     },
     method: "post",
     // 0 表示无超时时间
@@ -196,15 +223,39 @@ export function uploadUpgradeFile(formData) {
 }
 
 /**
+ * 上传文件合并
+ *@param {String} nodeId 节点 ID
+ */
+export function uploadUpgradeFileMerge(data) {
+  return axios({
+    url: "/system/upload-jar-sharding-merge",
+    method: "post",
+    headers: {},
+    data: data,
+    // 0 表示无超时时间
+    timeout: 0,
+  });
+}
+
+/**
  * 获取更新日志
  *@param {String} nodeId 节点 ID
  */
-export function changelog(nodeId) {
+export function changelog(data) {
   return axios({
     url: "/system/change_log",
     method: "post",
     headers: {},
-    data: { nodeId },
+    data,
+  });
+}
+
+export function changBetaRelease(params) {
+  return axios({
+    url: "/system/change-beta-release",
+    method: "get",
+    headers: {},
+    params,
   });
 }
 
@@ -212,12 +263,12 @@ export function changelog(nodeId) {
  * 检查新版本
  *@param {String} nodeId 节点 ID
  */
-export function checkVersion(nodeId) {
+export function checkVersion(data) {
   return axios({
     url: "/system/check_version.json",
     method: "post",
     headers: {},
-    data: { nodeId },
+    data,
   });
 }
 
@@ -225,79 +276,13 @@ export function checkVersion(nodeId) {
  * 远程升级
  *@param {String} nodeId 节点 ID
  */
-export function remoteUpgrade(nodeId) {
+export function remoteUpgrade(params) {
   return axios({
     url: "/system/remote_upgrade.json",
     method: "get",
     timeout: 0,
     headers: {},
-    data: { nodeId },
-  });
-}
-
-/**
- * 加载 白名单配置
- */
-export function getWhitelist() {
-  return axios({
-    url: "/system/get_whitelist",
-    method: "post",
-    data: {},
-  });
-}
-
-/**
- * 保存 白名单配置
- */
-export function saveWhitelist(data) {
-  return axios({
-    url: "/system/save_whitelist",
-    method: "post",
-    data: data,
-  });
-}
-
-/**
- * 加载 节点系统配置缓存信息
- */
-export function getNodeConfig() {
-  return axios({
-    url: "/system/get_node_config",
-    method: "post",
-    data: {},
-  });
-}
-
-/**
- * 保存 节点系统配置
- */
-export function saveNodeConfig(data) {
-  return axios({
-    url: "/system/save_node_config.json",
-    method: "post",
-    data: data,
-  });
-}
-
-/**
- * 加载 菜单配置信息
- */
-export function getMenusConfig() {
-  return axios({
-    url: "/system/get_menus_config",
-    method: "post",
-    data: {},
-  });
-}
-
-/**
- * 保存菜单配置信息
- */
-export function saveMenusConfig(data) {
-  return axios({
-    url: "/system/save_menus_config.json",
-    method: "post",
-    data: data,
+    params,
   });
 }
 

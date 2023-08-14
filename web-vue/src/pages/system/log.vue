@@ -13,18 +13,20 @@
       <div>
         <a-input class="console" v-model="logContext" readOnly type="textarea" style="resize: none" />
       </div> -->
-      <log-view :ref="`logView`" height="calc(100vh - 165px)" searchWidth="260px">
+      <log-view :ref="`logView`" height="calc(100vh - 165px)">
         <template slot="before">
-          <a-button type="primary" size="small" @click="loadData">刷新</a-button>
-          <a-button type="danger" size="small" :disabled="!this.temp.path" @click="deleteLog">删除</a-button>
-          <a-button type="primary" size="small" :disabled="!this.temp.path" @click="downloadLog">下载</a-button>
+          <a-space>
+            <a-button type="primary" size="small" @click="loadData">刷新</a-button>
+            <a-button type="danger" size="small" :disabled="!this.temp.path" @click="deleteLog">删除</a-button>
+            <a-button type="primary" size="small" :disabled="!this.temp.path" @click="downloadLog">下载</a-button>
+          </a-space>
         </template>
       </log-view>
     </a-layout-content>
     <!-- 对话框 -->
     <!-- <a-modal v-model="visible" title="系统提示" :footer="null">
       <a-space>
-        
+
         <a-button @click="visible = false">取消</a-button>
       </a-space>
     </a-modal> -->
@@ -70,11 +72,13 @@ export default {
         this.introGuide();
       }, 500);
     });
+    // 监听窗口关闭事件，当窗口关闭时，主动去关闭websocket连接，防止连接还没断开就关闭窗口，server端会抛异常。
+    window.onbeforeunload = () => {
+      this.socket?.close();
+    };
   },
   beforeDestroy() {
-    if (this.socket) {
-      this.socket.close();
-    }
+    this.socket?.close();
   },
   methods: {
     // 页面引导
@@ -129,23 +133,30 @@ export default {
     },
     // 选择节点
     select(selectedKeys, { node }) {
+      if (this.temp?.path === node.dataRef?.path) {
+        return;
+      }
+      if (!node.dataRef.isLeaf) {
+        return;
+      }
       const data = {
         op: "showlog",
         tomcatId: this.tomcatId,
         fileName: node.dataRef.path,
       };
       this.temp = node.dataRef;
-      this.$refs.logView.clearLogCache();
-      if (!this.socket || this.socket.readyState !== this.socket.OPEN || this.socket.readyState !== this.socket.CONNECTING) {
-        this.socket = new WebSocket(this.socketUrl);
-      }
+      this.$refs.logView?.clearLogCache();
+
+      this.socket?.close();
+
+      this.socket = new WebSocket(this.socketUrl);
       // 连接成功后
       this.socket.onopen = () => {
         this.socket.send(JSON.stringify(data));
       };
       this.socket.onmessage = (msg) => {
         // this.logContext += `${msg.data}\r\n`;
-        this.$refs.logView.appendLine(msg.data);
+        this.$refs.logView?.appendLine(msg.data);
       };
       this.socket.onerror = (err) => {
         console.error(err);
@@ -156,9 +167,7 @@ export default {
       this.socket.onclose = (err) => {
         //当客户端收到服务端发送的关闭连接请求时，触发onclose事件
         console.error(err);
-        this.$notification.info({
-          message: "会话已经关闭",
-        });
+        this.$message.warning("会话已经关闭[system-log] " + node.dataRef.path);
         // clearInterval(this.heart);
       };
     },
@@ -176,17 +185,7 @@ export default {
         path: this.temp.path,
       };
       // 请求接口拿到 blob
-      downloadFile(params).then((blob) => {
-        const url = window.URL.createObjectURL(blob);
-        let link = document.createElement("a");
-        link.style.display = "none";
-        link.href = url;
-        link.setAttribute("download", this.temp.title);
-        document.body.appendChild(link);
-        link.click();
-        // 关闭弹窗
-        this.visible = false;
-      });
+      window.open(downloadFile(params), "_blank");
     },
     // 删除文件
     deleteLog() {

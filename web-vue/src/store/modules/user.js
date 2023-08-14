@@ -7,13 +7,14 @@
  */
 import { TOKEN_KEY, USER_INFO_KEY, MENU_KEY, LONG_TERM_TOKEN } from "@/utils/const";
 
-import { getUserInfo, loginOut } from "@/api/user";
+import { getUserInfo, loginOut } from "@/api/user/user";
 
 const user = {
   state: {
     token: localStorage.getItem(TOKEN_KEY),
     longTermToken: localStorage.getItem(LONG_TERM_TOKEN),
     userInfo: JSON.parse(localStorage.getItem(USER_INFO_KEY)),
+    reloadUserInfo: false,
   },
   mutations: {
     setToken(state, data) {
@@ -35,21 +36,42 @@ const user = {
     },
   },
   actions: {
+    refreshUserInfo({ commit }) {
+      // 加载用户信息
+      return new Promise((resolve) => {
+        getUserInfo().then((res) => {
+          if (res.code === 200) {
+            commit("setUserInfo", res.data);
+            localStorage.setItem(USER_INFO_KEY, JSON.stringify(res.data));
+            resolve(res.data);
+          }
+        });
+      });
+    },
+    // 页面刷新 加载用户信息
+    pageReloadRefreshUserInfo({ dispatch, state }) {
+      if (state.reloadUserInfo) {
+        return;
+      }
+      dispatch("refreshUserInfo").then(() => {
+        state.reloadUserInfo = true;
+      });
+    },
     // 登录 data = {token: 'xxx', userName: 'name'}
     login({ dispatch, commit }, data) {
       return new Promise((resolve) => {
         commit("setToken", data);
         //commit('setUserName', data.userName);
-        // 加载用户信息
-        getUserInfo().then((res) => {
-          if (res.code === 200) {
-            commit("setUserInfo", res.data);
-            localStorage.setItem(USER_INFO_KEY, JSON.stringify(res.data));
+        dispatch("refreshUserInfo").then((userinfo) => {
+          if (userinfo?.systemUser) {
+            // 刷新管理员菜单
+            dispatch("loadManagementSystemMenus", true).then(() => {
+              //
+            });
           }
         });
-
         // 加载系统菜单 这里需要等待 action 执行完毕返回 promise, 否则第一次登录可能会从 store 里面获取不到 menus 数据而报错
-        dispatch("loadSystemMenus").then(() => {
+        dispatch("restLoadSystemMenus").then(() => {
           resolve();
         });
       });
@@ -59,7 +81,7 @@ const user = {
       return new Promise((resolve) => {
         commit("setToken", {});
         commit("setMenus", "");
-        dispatch("changeWorkspace", "");
+
         localStorage.removeItem(MENU_KEY);
         // 调用其他 action
         dispatch("clearTabs", { key: "all" });

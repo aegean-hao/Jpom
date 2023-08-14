@@ -8,17 +8,7 @@
           <template v-if="temp.projectList && temp.cacheData">
             <div>
               节点：
-              <a-select
-                :getPopupContainer="
-                  (triggerNode) => {
-                    return triggerNode.parentNode || document.body;
-                  }
-                "
-                :value="`${temp.cacheData.useNodeId},${temp.cacheData.useProjectId}`"
-                style="width: 200px"
-                @change="nodeChange"
-                placeholder="请选择节点"
-              >
+              <a-select :value="`${temp.cacheData.useNodeId},${temp.cacheData.useProjectId}`" style="width: 200px" @change="nodeChange" placeholder="请选择节点">
                 <a-select-option v-for="item in temp.projectList" :key="`${item.nodeId},${item.projectId}`">
                   {{ nodeName[item.nodeId] && nodeName[item.nodeId].name }}
                 </a-select-option>
@@ -28,7 +18,7 @@
           <!-- <a-button size="small" type="primary" @click="loadFileData">刷新目录</a-button> -->
         </div>
 
-        <a-directory-tree :replace-fields="treeReplaceFields" @select="nodeClick" :loadData="onTreeData" :treeData="treeList"></a-directory-tree>
+        <a-directory-tree :replace-fields="treeReplaceFields" @select="nodeClick" :loadData="onTreeData" :treeData="treeList"> </a-directory-tree>
       </a-layout-sider>
       <!-- 表格 -->
       <a-layout-content class="file-content">
@@ -111,9 +101,12 @@
 
         <a-tabs v-if="temp.cacheData" v-model="activeTagKey" :tabBarStyle="{ marginBottom: 0 }">
           <template v-for="item in temp.projectList">
-            <a-tab-pane forceRender v-if="nodeName[item.nodeId]" :key="`${item.nodeId},${item.projectId}`" :tab="nodeName[item.nodeId] && nodeName[item.nodeId].name">
+            <a-tab-pane forceRender v-if="nodeName[item.nodeId]" :key="`${item.nodeId},${item.projectId}`">
+              <template slot="tab">
+                【{{ nodeName[item.nodeId] && nodeName[item.nodeId].name }}】
+                {{ nodeProjectList[item.nodeId] && nodeProjectList[item.nodeId].projects && nodeProjectList[item.nodeId].projects.filter((item1) => item1.projectId === item.projectId)[0].name }}
+              </template>
               <viewPre
-                :searchReg="searchReg"
                 :ref="`pre-dom-${item.nodeId},${item.projectId}`"
                 :id="`pre-dom-${item.nodeId},${item.projectId}`"
                 height="calc(100vh - 80px - 85px - 43px)"
@@ -131,13 +124,12 @@
   </div>
 </template>
 <script>
-import {getNodeListAll, getProjectListAll} from "@/api/node";
-import {itemGroupBy} from "@/utils/time";
-import {getFileList} from "@/api/node-project";
-import {getWebSocketUrl} from "@/utils/const";
-import {mapGetters} from "vuex";
+import { getNodeListAll, getProjectListAll } from "@/api/node";
+import { getFileList } from "@/api/node-project";
+import { getWebSocketUrl, itemGroupBy } from "@/utils/const";
+import { mapGetters } from "vuex";
 import viewPre from "@/components/logView/view-pre";
-import {updateCache} from "@/api/log-read";
+import { updateCache } from "@/api/log-read";
 
 export default {
   components: {
@@ -157,7 +149,7 @@ export default {
       treeList: [],
       activeTagKey: "",
 
-      nodeProjectList: [],
+      nodeProjectList: {},
       nodeList: [],
       nodeName: {},
       temp: {},
@@ -165,7 +157,7 @@ export default {
     };
   },
   computed: {
-    ...mapGetters(["getLongTermToken"]),
+    ...mapGetters(["getLongTermToken", "getWorkspaceId"]),
     selectPath() {
       if (!Object.keys(this.tempNode).length) {
         return "";
@@ -184,14 +176,6 @@ export default {
         return "";
       } else {
         return (this.tempFileNode.levelName || "") + "/" + this.tempFileNode.filename;
-      }
-    },
-    searchReg() {
-      try {
-        return this.temp?.cacheData?.keyword ? new RegExp("(" + this.temp.cacheData.keyword + ")", "ig") : null;
-      } catch (e) {
-        // console.error(e);
-        return null;
       }
     },
   },
@@ -214,7 +198,7 @@ export default {
         const itemProjectData = this.nodeProjectList[item.nodeId].projects.filter((projectData) => {
           return item.projectId === projectData.projectId;
         })[0];
-        const socketUrl = getWebSocketUrl("/socket/console", `userId=${this.getLongTermToken}&id=${itemProjectData.id}&nodeId=${item.nodeId}&type=console&copyId=`);
+        const socketUrl = getWebSocketUrl("/socket/console", `userId=${this.getLongTermToken}&id=${itemProjectData.id}&nodeId=${item.nodeId}&type=console&copyId=&workspaceId=${this.getWorkspaceId}`);
         const domId = `pre-dom-${item.nodeId},${item.projectId}`;
         this.socketCache = { ...this.socketCache, [domId]: {} };
         const socket = this.initWebSocket(domId, socketUrl);
@@ -233,13 +217,23 @@ export default {
     });
     this.activeTagKey = this.temp.cacheData.useNodeId + "," + this.temp.cacheData.useProjectId;
     // console.log(cacheData);
+    // 监听窗口关闭事件，当窗口关闭时，主动去关闭websocket连接，防止连接还没断开就关闭窗口，server端会抛异常。
+    window.onbeforeunload = () => {
+      this.close();
+    };
+  },
+  beforeDestroy() {
+    this.close();
   },
   methods: {
+    close() {
+      Object.keys(this.socketCache).forEach((item) => {
+        clearInterval(this.socketCache[item].heart);
+        this.socketCache[item].socket?.close();
+      });
+    },
     initWebSocket(id, url) {
-      let socket;
-      if (!socket || socket.readyState !== socket.OPEN || socket.readyState !== socket.CONNECTING) {
-        socket = new WebSocket(url);
-      }
+      const socket = new WebSocket(url);
 
       socket.onerror = (err) => {
         console.error(err);
@@ -247,19 +241,19 @@ export default {
           key: "log-read-error",
           message: "web socket 错误,请检查是否开启 ws 代理",
         });
-        clearInterval(this.socketCache[id]);
+        clearInterval(this.socketCache[id].heart);
       };
       socket.onclose = (err) => {
         //当客户端收到服务端发送的关闭连接请求时，触发onclose事件
         console.error(err);
         this.$notification.info({
           key: "log-read-close",
-          message: "会话已经关闭",
+          message: "会话已经关闭[tail-log]",
         });
-        clearInterval(this.socketCache[id]);
+        clearInterval(this.socketCache[id].heart);
       };
       socket.onmessage = (msg) => {
-        // console.log(msg);
+        //console.log(msg);
         this.$refs[id][0].appendLine(msg.data);
 
         clearInterval(this.socketCache[id].heart);
@@ -334,13 +328,18 @@ export default {
         this.tempNode = node.dataRef;
         //this.loadFileList();
       } else {
-        this.tempFileNode = node.dataRef;
-        // let cacheData = ;
-        const cacheData = { ...this.temp.cacheData, logFile: this.selectFilePath };
-        this.temp = { ...this.temp, cacheData: cacheData };
-        this.$emit("changeTitle", this.selectFilePath);
-        //
-        this.sendSearchLog();
+        if (node.dataRef.textFileEdit) {
+          this.tempFileNode = node.dataRef;
+          // let cacheData = ;
+          const cacheData = { ...this.temp.cacheData, logFile: this.selectFilePath };
+          this.temp = { ...this.temp, cacheData: cacheData };
+          this.$emit("changeTitle", this.selectFilePath);
+          //
+          this.sendSearchLog();
+        } else {
+          //
+          this.$message.error("当前文件不可读,需要配置可读文件白名单");
+        }
       }
     },
     onTreeData(treeNode) {
@@ -369,9 +368,8 @@ export default {
 
       // 设置默认展开第一个
       setTimeout(() => {
-        const node = this.treeList[0];
-        this.tempNode = node;
-        this.expandKeys = [key];
+        this.tempNode = this.treeList[0];
+        //this.expandKeys = [key];
         //this.loadFileList();
       }, 1000);
     },
@@ -393,12 +391,13 @@ export default {
           // 加载文件
           getFileList(params).then((res) => {
             if (res.code === 200) {
-              const treeData = res.data.map((ele) => {
+              data.children = res.data.map((ele) => {
                 ele.isLeaf = !ele.isDirectory;
                 ele.key = ele.filename + "-" + new Date().getTime();
+                //ele.disabled = ele.textFileEdit;
+
                 return ele;
               });
-              data.children = treeData;
 
               this.treeList = [...this.treeList];
               resolve();
@@ -413,12 +412,13 @@ export default {
     },
     sendSearchLog() {
       if (this.temp?.cacheData?.logFile) {
-        Object.keys(this.socketCache).forEach((item) => {
-          this.$refs[item][0].clearLogCache();
-          this.sendMsg(item, "showlog", this.temp.cacheData);
+        // 先更新缓存再请求搜索，避免长loading
+        updateCache(Object.assign({}, this.temp.cacheData, { id: this.temp.id })).then(() => {
+          Object.keys(this.socketCache).forEach((item) => {
+            this.$refs[item][0].clearLogCache();
+            this.sendMsg(item, "showlog", this.temp.cacheData);
+          });
         });
-        //
-        updateCache(Object.assign({}, this.temp.cacheData, { id: this.temp.id })).then();
       }
       //
     },
@@ -446,9 +446,7 @@ export default {
 .log-filter {
   /* margin-top: -22px; */
   /* margin-bottom: 10px; */
-  padding: 0 10px;
-  padding-top: 0;
-  padding-bottom: 10px;
+  padding: 0 10px 10px;
   line-height: 0;
   border-bottom: 1px solid #eee;
 }

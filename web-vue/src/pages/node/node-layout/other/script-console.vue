@@ -7,17 +7,38 @@
     <div>
       <log-view :ref="`logView`" height="calc(100vh - 140px)">
         <template slot="before">
-          <a-button :loading="btnLoading" :disabled="scriptStatus !== 0" type="primary" @click="start">执行</a-button>
-          <a-button :loading="btnLoading" :disabled="scriptStatus !== 1" type="primary" @click="stop">停止</a-button>
+          <a-space>
+            <a-button size="small" :loading="btnLoading" :disabled="scriptStatus !== 0" type="primary" @click="start">执行</a-button>
+            <a-button size="small" :loading="btnLoading" :disabled="scriptStatus !== 1" type="primary" @click="stop">停止</a-button>
+          </a-space>
         </template>
       </log-view>
     </div>
 
     <!--远程下载  -->
-    <a-modal v-model="editArgs" title="添加运行参数" @ok="startExecution" @cancel="this.editArgs = false" :maskClosable="false">
-      <a-form-model :model="temp" :label-col="{ span: 5 }" :wrapper-col="{ span: 24 }" ref="ruleForm">
-        <a-form-model-item label="执行参数" prop="args">
-          <a-input v-model="temp.args" placeholder="执行参数,没有参数可以不填写" />
+    <a-modal destroyOnClose v-model="editArgs" title="添加运行参数" @ok="startExecution" :maskClosable="false">
+      <a-form-model :model="temp" :label-col="{ span: 4 }" :wrapper-col="{ span: 20 }" ref="ruleForm">
+        <a-form-model-item label="命令参数" :help="`${commandParams.length ? '所有参数将拼接成字符串以空格分隔形式执行脚本,需要注意参数顺序和未填写值的参数将自动忽略' : ''}`">
+          <a-row v-for="(item, index) in commandParams" :key="item.key">
+            <a-col :span="22">
+              <a-input :addon-before="`参数${index + 1}值`" v-model="item.value" :placeholder="`参数值 ${item.desc ? ',' + item.desc : ''}`">
+                <template slot="suffix">
+                  <a-tooltip v-if="item.desc" :title="item.desc">
+                    <a-icon type="info-circle" style="color: rgba(0, 0, 0, 0.45)" />
+                  </a-tooltip>
+                </template>
+              </a-input>
+            </a-col>
+
+            <a-col v-if="!item.desc" :span="2">
+              <a-row type="flex" justify="center" align="middle">
+                <a-col>
+                  <a-icon type="minus-circle" @click="() => commandParams.splice(index, 1)" style="color: #ff0000" />
+                </a-col>
+              </a-row>
+            </a-col>
+          </a-row>
+          <a-button type="primary" size="small" @click="() => commandParams.push({})">添加参数</a-button>
         </a-form-model-item>
       </a-form-model>
     </a-modal>
@@ -50,30 +71,40 @@ export default {
       scriptStatus: 0,
       editArgs: false,
       temp: {
-        args: "",
+        // args: "",
       },
+      commandParams: [],
       // 日志内容
       // logContext: "loading ...",
       btnLoading: true,
     };
   },
   computed: {
-    ...mapGetters(["getLongTermToken"]),
+    ...mapGetters(["getLongTermToken", "getWorkspaceId"]),
     socketUrl() {
-      return getWebSocketUrl("/socket/node/script_run", `userId=${this.getLongTermToken}&id=${this.id}&nodeId=${this.nodeId}&type=nodeScript`);
+      return getWebSocketUrl("/socket/node/script_run", `userId=${this.getLongTermToken}&id=${this.id}&nodeId=${this.nodeId}&type=nodeScript&workspaceId=${this.getWorkspaceId}`);
     },
   },
   mounted() {
     this.initWebSocket();
-    this.temp.args = this.defArgs;
+    if (typeof this.defArgs === "string" && this.defArgs) {
+      this.commandParams = JSON.parse(this.defArgs);
+    } else {
+      this.commandParams = [];
+    }
+    // 监听窗口关闭事件，当窗口关闭时，主动去关闭websocket连接，防止连接还没断开就关闭窗口，server端会抛异常。
+    window.onbeforeunload = () => {
+      this.close();
+    };
   },
   beforeDestroy() {
-    if (this.socket) {
-      this.socket.close();
-    }
-    clearInterval(this.heart);
+    this.close();
   },
   methods: {
+    close() {
+      this.socket?.close();
+      clearInterval(this.heart);
+    },
     // 初始化
     initWebSocket() {
       this.logContext = "";
@@ -96,14 +127,12 @@ export default {
       this.socket.onclose = (err) => {
         //当客户端收到服务端发送的关闭连接请求时，触发onclose事件
         console.error(err);
-        this.$notification.info({
-          message: "会话已经关闭",
-        });
+        this.$message.warning("会话已经关闭[node-script-consloe]");
         clearInterval(this.heart);
         this.btnLoading = true;
       };
       this.socket.onmessage = (msg) => {
-        if (msg.data.indexOf("code") > -1 && msg.data.indexOf("msg") > -1) {
+        if (msg.data.indexOf("JPOM_MSG") > -1 && msg.data.indexOf("op") > -1) {
           const res = JSON.parse(msg.data);
           if (res.code === 200) {
             this.$notification.success({
@@ -145,7 +174,7 @@ export default {
       const data = {
         op: op,
         scriptId: this.scriptId,
-        args: this.temp.args,
+        args: JSON.stringify(this.commandParams),
         executeId: this.temp.executeId,
       };
       this.socket.send(JSON.stringify(data));

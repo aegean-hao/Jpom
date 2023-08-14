@@ -1,23 +1,45 @@
 <template>
-  <div class="main">
+  <div>
     <a-timeline>
       <a-timeline-item>
-        <span class="layui-elem-quote">当前程序打包时间：{{ temp.timeStamp }}</span>
+        <span class="layui-elem-quote">
+          当前程序打包时间：{{ temp.timeStamp }}
+          <a-tag v-if="this.nodeId || this.machineId">agent</a-tag>
+          <a-tag v-else>server</a-tag>
+        </span>
       </a-timeline-item>
       <a-timeline-item>
         <span class="layui-elem-quote">当前前端打包时间：{{ temp.vueTimeStamp }}</span>
       </a-timeline-item>
+      <a-timeline-item v-if="!this.nodeId && !this.machineId">
+        <span class="layui-elem-quote">beta计划：</span>
+        <a-space>
+          <a-switch checked-children="加入" un-checked-children="未加入" :disabled="true" v-model="temp.joinBetaRelease" />
+          <template v-if="temp.joinBetaRelease">
+            <a-button type="link" @click="handleChangeBetaRelease(false)">关闭 beat计划</a-button>
+          </template>
+          <template v-else>
+            <a-tooltip>
+              <template #title>
+                加入 beta 计划可以及时获取到最新的功能、一些优化功能、最快修复 bug 的版本，但是 beta 版也可能在部分新功能上存在不稳定的情况。您需要根据您业务情况来评估是否可以加入 beta，在使用 beta
+                版过程中遇到问题可以随时反馈给我们，我们会尽快为您解答。
+              </template>
+              <a-button icon="question-circle" type="link" @click="handleChangeBetaRelease(true)">我要加入</a-button>
+            </a-tooltip>
+          </template>
+        </a-space>
+      </a-timeline-item>
       <a-timeline-item>
         <span class="layui-elem-quote">当前版本号：{{ temp.version }} </span>
         <template v-if="temp.upgrade !== undefined">
-          <a-tag v-if="temp.upgrade" color="pink" @click="upgrageVerion">新版本：{{ temp.newVersion }} </a-tag>
+          <a-tag v-if="temp.upgrade" color="pink" @click="upgrageVerion">新版本：{{ temp.newVersion }} {{ temp.newBeta ? "/beta" : "" }} <a-icon type="download" /></a-tag>
           <a-tag v-else color="orange" @click="checkVersion">
             <a-icon type="rocket" />
           </a-tag>
         </template>
       </a-timeline-item>
       <a-timeline-item>
-        <span class="layui-elem-quote">已经运行时间：{{ temp.upTimeStr }}</span>
+        <span class="layui-elem-quote">已经运行时间：{{ formatDuration(temp.upTime) }}</span>
       </a-timeline-item>
       <a-timeline-item>
         <span class="layui-elem-quote"
@@ -43,22 +65,36 @@
       </a-timeline-item>
     </a-timeline>
 
-    <a-upload :file-list="fileList" :remove="handleRemove" :before-upload="beforeUpload" accept=".jar,.zip">
-      <a-button><a-icon type="upload" />选择升级文件</a-button>
-    </a-upload>
-    <a-button type="primary" class="upload-btn" :disabled="fileList.length === 0" @click="startUpload">上传升级文件</a-button>
+    <a-row>
+      <a-col span="22">
+        <a-space direction="vertical" style="display: block">
+          <a-upload :file-list="fileList" :remove="handleRemove" :disabled="!!percentage" :before-upload="beforeUpload" accept=".jar,.zip">
+            <a-icon type="loading" v-if="percentage" />
+            <a-button icon="upload" v-else>选择升级文件</a-button>
+          </a-upload>
+          <a-row v-if="percentage">
+            <a-col span="20">
+              <a-progress :percent="percentage"></a-progress>
+            </a-col>
+          </a-row>
+          <a-button type="primary" :disabled="fileList.length === 0 || !!percentage" @click="startUpload">上传升级包</a-button>
+        </a-space>
+      </a-col>
+    </a-row>
 
     <a-divider dashed />
     <markdown-it-vue class="md-body" :content="changelog" :options="markdownOptions" />
   </div>
 </template>
 <script>
-import { systemInfo, uploadUpgradeFile, changelog, checkVersion, remoteUpgrade } from "@/api/system";
+import { systemInfo, uploadUpgradeFile, changelog, checkVersion, remoteUpgrade, uploadUpgradeFileMerge, changBetaRelease } from "@/api/system";
 import Vue from "vue";
-import { parseTime } from "@/utils/time";
 import MarkdownItVue from "markdown-it-vue";
 import "markdown-it-vue/dist/markdown-it-vue.css";
-import { RESTART_UPGRADE_WAIT_TIME_COUNT } from "@/utils/const";
+import { RESTART_UPGRADE_WAIT_TIME_COUNT, parseTime, compareVersion, pageBuildInfo, formatDuration } from "@/utils/const";
+import { uploadPieces } from "@/utils/upload-pieces";
+import { executionRequest } from "@/api/external";
+
 export default {
   name: "Upgrade",
   components: {
@@ -69,6 +105,10 @@ export default {
       type: String,
       default: "",
     },
+    machineId: {
+      type: String,
+      default: "",
+    },
   },
   data() {
     return {
@@ -76,7 +116,7 @@ export default {
 
       checkCount: 0,
       fileList: [],
-      timer: null,
+      percentage: 0,
       changelog: "",
       markdownOptions: {
         markdownIt: {
@@ -94,20 +134,32 @@ export default {
   mounted() {
     this.loadData();
   },
+  beforeDestroy() {},
   methods: {
+    uploadPieces,
+    formatDuration,
     // 加载数据
     loadData() {
-      systemInfo(this.nodeId).then((res) => {
+      systemInfo({
+        nodeId: this.nodeId,
+        machineId: this.machineId,
+      }).then((res) => {
         this.temp = res.data?.manifest;
         //
         // vueTimeStamp
-        this.temp = { ...this.temp, vueTimeStamp: parseTime(this.getMeta("build-time")) };
+        this.temp = { ...this.temp, vueTimeStamp: parseTime(this.getMeta("build-time")), joinBetaRelease: res.data?.joinBetaRelease };
         //
-        changelog(this.nodeId).then((resLog) => {
+        changelog({
+          nodeId: this.nodeId,
+          machineId: this.machineId,
+        }).then((resLog) => {
           this.changelog = resLog.data;
           //
           // res.data.
-          this.showVersion(false, res.data?.remoteVersion);
+          this.showVersion(false, res.data?.remoteVersion).then((upgrade) => {
+            // 本地网络检测
+            this.loaclCheckVersion(!upgrade);
+          });
         });
       });
     },
@@ -152,20 +204,67 @@ export default {
         okText: "确认",
         cancelText: "取消",
         onOk: () => {
-          const formData = new FormData();
-          formData.append("file", this.fileList[0]);
-          formData.append("nodeId", this.nodeId);
-          // 上传文件
-          uploadUpgradeFile(formData).then((res) => {
-            if (res.code === 200) {
-              this.$notification.success({
-                message: res.msg,
+          const file = this.fileList[0];
+          this.percentage = 0;
+          uploadPieces({
+            file,
+            process: (process) => {
+              this.percentage = Math.max(this.percentage, process);
+            },
+            success: (uploadData) => {
+              // 准备合并
+              uploadUpgradeFileMerge({
+                ...uploadData[0],
+                nodeId: this.nodeId,
+                machineId: this.machineId,
+              }).then((res) => {
+                if (res.code === 200) {
+                  this.fileList = [];
+                  this.startCheckUpgradeStatus(res.msg);
+                }
+                setTimeout(() => {
+                  this.percentage = 0;
+                }, 2000);
               });
-
-              this.startCheckUpgradeStatus(res.msg);
-            }
+            },
+            error: (msg) => {
+              this.$notification.error({
+                message: msg,
+              });
+            },
+            uploadCallback: (formData) => {
+              return new Promise((resolve, reject) => {
+                formData.append("nodeId", this.nodeId);
+                formData.append("machineId", this.machineId);
+                // 上传文件
+                uploadUpgradeFile(formData)
+                  .then((res) => {
+                    if (res.code === 200) {
+                      resolve();
+                    } else {
+                      reject();
+                    }
+                  })
+                  .catch(() => {
+                    reject();
+                  });
+              });
+            },
           });
-          this.fileList = [];
+          // const formData = new FormData();
+          // formData.append("file", this.fileList[0]);
+
+          // // 上传文件
+          // uploadUpgradeFile(formData).then((res) => {
+          //   if (res.code === 200) {
+          //     this.$notification.success({
+          //       message: res.msg,
+          //     });
+
+          //     this.startCheckUpgradeStatus(res.msg);
+          //   }
+          // });
+          // this.fileList = [];
         },
       });
     },
@@ -177,12 +276,15 @@ export default {
       });
       //
       this.timer = setInterval(() => {
-        systemInfo(this.nodeId)
+        systemInfo({
+          nodeId: this.nodeId,
+          machineId: this.machineId,
+        })
           .then((res) => {
             let manifest = res.data?.manifest;
             if (res.code === 200 && manifest?.timeStamp !== this.temp.timeStamp) {
+              Vue.prototype.$setLoading("closeAll");
               clearInterval(this.timer);
-              Vue.prototype.$setLoading(false);
               this.$notification.success({
                 message: "升级成功",
               });
@@ -195,7 +297,7 @@ export default {
                 this.$notification.warning({
                   message: "未升级成功：" + (res.msg || ""),
                 });
-                Vue.prototype.$setLoading(false);
+                Vue.prototype.$setLoading("closeAll");
                 clearInterval(this.timer);
               }
             }
@@ -203,11 +305,16 @@ export default {
           .catch((error) => {
             console.error(error);
             if (this.checkCount > RESTART_UPGRADE_WAIT_TIME_COUNT) {
-              Vue.prototype.$setLoading(false);
+              Vue.prototype.$setLoading("closeAll");
+              clearInterval(this.timer);
               this.$notification.error({
                 message: "升级超时,请去服务器查看控制台日志排查问题",
               });
-              clearInterval(this.timer);
+            } else {
+              Vue.prototype.$setLoading({
+                spinning: true,
+                tip: (msg || "升级中，请稍候...") + ",请耐心等待暂时不用刷新页面,升级成功后会自动刷新",
+              });
             }
           });
         this.checkCount = this.checkCount + 1;
@@ -215,32 +322,71 @@ export default {
     },
     // 检查新版本
     checkVersion() {
-      checkVersion(this.nodeId).then((res) => {
+      checkVersion({
+        nodeId: this.nodeId,
+        machineId: this.machineId,
+      }).then((res) => {
         if (res.code === 200) {
-          this.showVersion(true, res.data);
+          this.showVersion(true, res.data).then((upgrade) => {
+            // 远程检测失败才本地检测
+            if (!upgrade) {
+              this.loaclCheckVersion(true);
+            }
+          });
+        }
+      });
+    },
+    // 本地网络检测
+    loaclCheckVersion(tip) {
+      //console.log(compareVersion("1.0.0", "1.0.1"), compareVersion("2.4.3", "2.4.2"));
+      //console.log(compareVersion("1.0.2", "dev"));
+      const buildInfo = pageBuildInfo();
+
+      executionRequest("https://jpom.top/docs/release-versions.json", { ...buildInfo, type: this.nodeId || this.machineId ? "agent" : "server" }).then((data) => {
+        if (!data || !data.tag_name) {
+          return;
+        }
+
+        const tagName = data.tag_name.replace("v", "");
+        const upgrade = compareVersion(this.temp.version, tagName) < 0;
+
+        if (upgrade && tip) {
+          this.$notification.success({
+            duration: 10,
+            message: function (h) {
+              //
+              const dUrl = data.downloadUrl || "https://jpom.top";
+              const html = "检测到新版本 " + tagName + "。请前往：<a target='_blank' href='" + dUrl + "'>" + dUrl + "</a> 下载安装包";
+              return h("div", null, [h("p", { domProps: { innerHTML: html } }, null)]);
+            },
+          });
         }
       });
     },
     showVersion(tip, data) {
-      if (!data) {
-        this.temp.upgrade = false;
+      return new Promise((resolve) => {
+        if (!data) {
+          this.temp = { ...this.temp, upgrade: false };
+          if (tip) {
+            this.$notification.success({
+              message: "没有检查到最新版",
+            });
+          }
+          resolve(false);
+          return;
+        }
+        this.temp = { ...this.temp, upgrade: data.upgrade, newVersion: data.tagName, newBeta: data.beta };
+
+        if (this.temp.upgrade && data.changelog) {
+          this.changelog = data.changelog;
+        }
         if (tip) {
           this.$notification.success({
-            message: "没有检查到最新版",
+            message: this.temp.upgrade ? "检测到新版本 " + data.tagName : "没有检查到最新版",
           });
         }
-        return;
-      }
-      this.temp.upgrade = data.upgrade;
-      this.temp.newVersion = data.tagName;
-      if (this.temp.upgrade && data.changelog) {
-        this.changelog = data.changelog;
-      }
-      if (tip) {
-        this.$notification.success({
-          message: this.temp.upgrade ? "检测到新版本 " + data.tagName : "没有检查到最新版",
-        });
-      }
+        resolve(data.upgrade);
+      });
     },
     // 升级
     upgrageVerion() {
@@ -259,7 +405,10 @@ export default {
         cancelText: "取消",
         onOk: () => {
           //
-          remoteUpgrade(this.nodeId).then((res) => {
+          remoteUpgrade({
+            nodeId: this.nodeId,
+            machineId: this.machineId,
+          }).then((res) => {
             if (res.code === 200) {
               this.$notification.success({
                 message: res.msg,
@@ -271,17 +420,38 @@ export default {
         },
       });
     },
+    // 加入beta计划
+    handleChangeBetaRelease(beta) {
+      const html = beta
+        ? "确认要加入 beta 计划吗？<ul style='color:red;'>" +
+          "<li><b> 加入 beta 计划可以及时获取到最新的功能、一些优化功能、最快修复 bug 的版本，但是 beta 版也可能在部分新功能上存在不稳定的情况。</b></li>" +
+          "<li><b>您需要根据您业务情况来评估是否可以加入 beta。</b></li>" +
+          "<li>在使用 beta 版过程中遇到问题可以随时反馈给我们，我们会尽快为您解答。</li>" +
+          " </ul>"
+        : "确认要关闭 beta 计划吗？";
+      const h = this.$createElement;
+      this.$confirm({
+        title: "系统提示",
+        content: h("div", null, [h("p", { domProps: { innerHTML: html } }, null)]),
+        okText: "确认",
+        cancelText: "取消",
+        onOk: () => {
+          //
+          changBetaRelease({
+            beta: beta,
+          }).then((res) => {
+            if (res.code === 200) {
+              this.$notification.success({
+                message: res.msg,
+              });
+
+              this.loadData();
+            }
+          });
+        },
+      });
+    },
   },
 };
 </script>
-<style scoped>
-.main {
-  background-color: #fff;
-  margin: -15px -30px 0 -15px;
-  padding: 15px;
-}
-
-.upload-btn {
-  margin-top: 20px;
-}
-</style>
+<style scoped></style>

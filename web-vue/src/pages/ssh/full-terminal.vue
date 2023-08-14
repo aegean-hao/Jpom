@@ -20,7 +20,7 @@
         <a slot="extra" href="#"></a>
         <terminal v-if="sshData" :sshId="sshData.id" />
         <template v-else>
-          <a-result status="404" title="404" sub-title="没有对应的SSH">
+          <a-result status="404" title="不能操作" sub-title="没有对应的SSH">
             <template #extra>
               <router-link :to="{ path: '/ssh', query: {} }">
                 <a-button type="primary">返回首页</a-button>
@@ -31,14 +31,14 @@
       </a-card>
     </a-spin>
     <!-- 文件管理 -->
-    <a-drawer v-if="sshData" :title="`${sshData.name} (${sshData.host}) 文件管理`" placement="right" width="90vw" :visible="drawerVisible" @close="onClose">
-      <ssh-file v-if="drawerVisible" :ssh="sshData" />
+    <a-drawer destroyOnClose v-if="sshData" :title="`${sshData.name} (${sshData.host}) 文件管理`" placement="right" width="90vw" :visible="drawerVisible" @close="onClose">
+      <ssh-file v-if="drawerVisible" :sshId="sshData.id" />
     </a-drawer>
   </div>
 </template>
 <script>
 import terminal from "./terminal";
-import {getItem} from "@/api/ssh";
+import { getItem } from "@/api/ssh";
 import SshFile from "@/pages/ssh/ssh-file";
 
 export default {

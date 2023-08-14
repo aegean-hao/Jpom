@@ -28,8 +28,8 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
         <artifactId>jpom-plugins-parent</artifactId>
-        <groupId>io.jpom.plugins</groupId>
-        <version>2.9.4</version>
+        <groupId>org.dromara.jpom.plugins</groupId>
+        <version>2.10.41</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -43,7 +43,7 @@
     <dependencies>
 
         <dependency>
-            <groupId>io.jpom</groupId>
+            <groupId>org.dromara.jpom</groupId>
             <artifactId>common</artifactId>
             <scope>provided</scope>
             <version>${project.version}</version>
@@ -52,7 +52,7 @@
         <dependency>
             <groupId>org.tmatesoft.svnkit</groupId>
             <artifactId>svnkit</artifactId>
-            <version>1.10.5</version>
+            <version>1.10.11</version>
         </dependency>
     </dependencies>
 

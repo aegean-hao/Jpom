@@ -3,8 +3,11 @@
   <a-layout class="ssh-file-layout">
     <!-- 目录树 -->
     <a-layout-sider theme="light" class="sider" width="25%">
+      <a-row class="dir-container">
+        <a-button size="small" type="primary" @click="loadData()">刷新</a-button>
+      </a-row>
       <a-empty v-if="treeList.length === 0" />
-      <a-directory-tree :treeData="treeList" :replaceFields="replaceFields" @select="onSelect"></a-directory-tree>
+      <a-directory-tree :treeData="treeList" :replaceFields="replaceFields" @select="onSelect"> </a-directory-tree>
     </a-layout-sider>
     <!-- 表格 -->
     <a-layout-content class="file-content">
@@ -12,8 +15,8 @@
       <a-table size="middle" :data-source="fileList" :loading="loading" :columns="columns" :pagination="false" bordered :rowKey="(record, index) => index">
         <template slot="title">
           <a-space>
-            <a-dropdown :disabled="!this.tempNode.parentDir">
-              <a-button size="small" type="primary" @click="(e) => e.preventDefault()">上传</a-button>
+            <a-dropdown :disabled="!this.tempNode.nextPath">
+              <a-button size="small" type="primary" @click="(e) => e.preventDefault()">上传小文件</a-button>
               <a-menu slot="overlay">
                 <a-menu-item @click="handleUpload">
                   <a-space><a-icon type="file-add" />上传文件</a-space>
@@ -23,7 +26,7 @@
                 </a-menu-item>
               </a-menu>
             </a-dropdown>
-            <a-dropdown :disabled="!this.tempNode.parentDir">
+            <a-dropdown :disabled="!this.tempNode.nextPath">
               <a-button size="small" type="primary" @click="(e) => e.preventDefault()">新建</a-button>
               <a-menu slot="overlay">
                 <a-menu-item @click="handleAddFolder">
@@ -40,13 +43,17 @@
                 </a-menu-item>
               </a-menu>
             </a-dropdown>
-            <a-button size="small" :disabled="!this.tempNode.parentDir" type="primary" @click="loadFileList()">刷新</a-button>
-            <a-button size="small" :disabled="!this.tempNode.parentDir" type="danger" @click="handleDeletePath()">删除</a-button>
+            <a-button size="small" :disabled="!this.tempNode.nextPath" type="primary" @click="loadFileList()">刷新</a-button>
+            <a-button size="small" :disabled="!this.tempNode.nextPath" type="danger" @click="handleDeletePath()">删除</a-button>
+            <div>
+              文件夹：
+              <a-switch :disabled="!this.tempNode.nextPath" @change="changeListShowDir" checked-children="显示" un-checked-children="隐藏" v-model="listShowDir" />
+            </div>
             <span v-if="this.nowPath">当前目录:{{ this.nowPath }}</span>
             <!-- <span v-if="this.nowPath">{{ this.tempNode.parentDir }}</span> -->
           </a-space>
         </template>
-        <a-tooltip slot="name" slot-scope="text, record" placement="topLeft" :title="text">
+        <a-tooltip slot="name" slot-scope="text, record" placement="topLeft" :title="` 名称：${text} 长名称：${record.longname}`">
           <a-dropdown :trigger="['contextmenu']">
             <div>{{ text }}</div>
             <a-menu slot="overlay">
@@ -58,10 +65,13 @@
 
           <!-- <span>{{ text }}</span> -->
         </a-tooltip>
-        <a-tooltip slot="dir" slot-scope="text" placement="topLeft" :title="text">
-          <span>{{ text ? "目录" : "文件" }}</span>
+        <a-tooltip slot="dir" slot-scope="text, record" placement="topLeft" :title="`${record.link ? '链接' : text ? '目录' : '文件'}`">
+          <span>{{ record.link ? "链接" : text ? "目录" : "文件" }}</span>
         </a-tooltip>
-        <a-tooltip slot="size" slot-scope="text" placement="topLeft" :title="text">
+        <a-tooltip slot="size" slot-scope="text" placement="topLeft" :title="renderSize(text)">
+          <span>{{ renderSize(text) }}</span>
+        </a-tooltip>
+        <a-tooltip slot="tooltip" slot-scope="text" placement="topLeft" :title="text">
           <span>{{ text }}</span>
         </a-tooltip>
         <template slot="operation" slot-scope="text, record">
@@ -69,14 +79,14 @@
             <a-tooltip title="需要到 ssh 信息中配置允许编辑的文件后缀">
               <a-button size="small" type="primary" :disabled="!record.textFileEdit" @click="handleEdit(record)">编辑</a-button>
             </a-tooltip>
-            <!-- <a-button type="primary" :disabled="!record.textFileEdit" @click="handlePreview(record)">跟踪</a-button> -->
-            <a-button size="small" type="primary" @click="handleDownload(record)">下载</a-button>
+
+            <a-button size="small" type="primary" :disabled="record.dir" @click="handleDownload(record)">下载</a-button>
             <a-button size="small" type="danger" @click="handleDelete(record)">删除</a-button>
           </a-space>
         </template>
       </a-table>
       <!-- 上传文件 -->
-      <a-modal @cancel="closeUploadFile" v-model="uploadFileVisible" width="300px" title="上传文件" :footer="null" :maskClosable="true">
+      <a-modal destroyOnClose @cancel="closeUploadFile" v-model="uploadFileVisible" width="300px" title="上传文件" :footer="null" :maskClosable="true">
         <a-upload :file-list="uploadFileList" :remove="handleRemove" :before-upload="beforeUpload" :accept="`${uploadFileZip ? ZIP_ACCEPT : ''}`" :multiple="!uploadFileZip">
           <a-button>
             <a-icon type="upload" />
@@ -88,34 +98,31 @@
         <a-button type="primary" :disabled="uploadFileList.length === 0" @click="startUpload">开始上传</a-button>
       </a-modal>
       <!--  新增文件 目录    -->
-      <a-modal v-model="addFileFolderVisible" width="300px" :title="addFileOrFolderType === 1 ? '新增目录' : '新建文件'" :footer="null" :maskClosable="true">
+      <a-modal v-model="addFileFolderVisible" width="300px" :title="temp.addFileOrFolderType === 1 ? '新增目录' : '新建文件'" :footer="null" :maskClosable="true">
         <a-space direction="vertical" style="width: 100%">
           <span v-if="this.nowPath">当前目录:{{ this.nowPath }}</span>
           <!-- <a-tag v-if="">目录创建成功后需要手动刷新右边树才能显示出来哟</a-tag> -->
-          <a-tooltip :title="this.addFileOrFolderType === 1 ? '目录创建成功后需要手动刷新右边树才能显示出来哟' : ''">
-            <a-input v-model="fileFolderName" placeholder="输入文件或者文件夹名" />
+          <a-tooltip :title="this.temp.addFileOrFolderType === 1 ? '目录创建成功后需要手动刷新右边树才能显示出来哟' : ''">
+            <a-input v-model="temp.fileFolderName" placeholder="输入文件或者文件夹名" />
           </a-tooltip>
           <a-row type="flex" justify="center">
-            <a-button type="primary" :disabled="fileFolderName.length === 0" @click="startAddFileFolder">确认</a-button>
+            <a-button type="primary" :disabled="!temp.fileFolderName || temp.fileFolderName.length === 0" @click="startAddFileFolder">确认</a-button>
           </a-row>
         </a-space>
       </a-modal>
-      <!-- Terminal -->
-      <a-modal v-model="terminalVisible" width="50%" title="Terminal" :footer="null" :maskClosable="false">
-        <terminal v-if="terminalVisible" :sshId="ssh.id" :nodeId="ssh.nodeModel.id" :tail="temp.path + temp.parentDir" />
-      </a-modal>
-      <a-modal v-model="editFileVisible" width="80vw" title="编辑文件" cancelText="关闭" :maskClosable="true" @ok="updateFileData">
+
+      <a-modal destroyOnClose v-model="editFileVisible" width="80vw" title="编辑文件" cancelText="关闭" :maskClosable="true" @ok="updateFileData">
         <div style="height: 60vh">
           <code-editor showTool v-model="temp.fileContent" :fileSuffix="temp.name"></code-editor>
         </div>
       </a-modal>
       <!-- 从命名文件/文件夹 -->
-      <a-modal v-model="renameFileFolderVisible" width="300px" :title="`重命名`" :footer="null" :maskClosable="true">
+      <a-modal destroyOnClose v-model="renameFileFolderVisible" width="300px" :title="`重命名`" :footer="null" :maskClosable="true">
         <a-space direction="vertical" style="width: 100%">
           <a-input v-model="temp.fileFolderName" placeholder="输入新名称" />
 
           <a-row type="flex" justify="center" v-if="temp.fileFolderName">
-            <a-button type="primary" :disabled="temp.fileFolderName.length === 0" @click="renameFileFolder">确认</a-button>
+            <a-button type="primary" :disabled="temp.fileFolderName.length === 0 || temp.fileFolderName === temp.oldFileFolderName" @click="renameFileFolder">确认</a-button>
           </a-row>
         </a-space>
       </a-modal>
@@ -123,19 +130,23 @@
   </a-layout>
 </template>
 <script>
-import {deleteFile, downloadFile, getFileList, getRootFileList, newFileFolder, readFile, renameFileFolder, updateFileData, uploadFile} from "@/api/ssh";
-import Terminal from "./terminal";
+import { deleteFile, downloadFile, getFileList, getRootFileList, newFileFolder, readFile, renameFileFolder, updateFileData, uploadFile } from "@/api/ssh-file";
+
 import codeEditor from "@/components/codeEditor";
-import {ZIP_ACCEPT} from "@/utils/const";
+import { ZIP_ACCEPT, renderSize } from "@/utils/const";
 
 export default {
   props: {
-    ssh: {
-      type: Object,
+    sshId: {
+      type: String,
+      default: "",
+    },
+    machineSshId: {
+      type: String,
+      default: "",
     },
   },
   components: {
-    Terminal,
     codeEditor,
   },
   data() {
@@ -150,56 +161,165 @@ export default {
       uploadFileZip: false,
       ZIP_ACCEPT: ZIP_ACCEPT,
       renameFileFolderVisible: false,
-      terminalVisible: false,
+      listShowDir: false,
       tableHeight: "80vh",
       replaceFields: {
         children: "children",
-        title: "title",
+        title: "name",
         key: "key",
       },
       columns: [
-        { title: "文件名称", dataIndex: "title", ellipsis: true, scopedSlots: { customRender: "name" } },
+        { title: "文件名称", dataIndex: "name", ellipsis: true, scopedSlots: { customRender: "name" } },
         { title: "文件类型", dataIndex: "dir", width: 100, ellipsis: true, scopedSlots: { customRender: "dir" } },
         { title: "文件大小", dataIndex: "size", width: 120, ellipsis: true, scopedSlots: { customRender: "size" } },
-        { title: "修改时间", dataIndex: "modifyTime", width: 180, ellipsis: true },
-        { title: "操作", dataIndex: "operation", align: "center", scopedSlots: { customRender: "operation" }, width: 180 },
+        { title: "权限", dataIndex: "permissions", width: 120, ellipsis: true, scopedSlots: { customRender: "tooltip" } },
+        { title: "修改时间", dataIndex: "modifyTime", width: "170px", ellipsis: true },
+        { title: "操作", dataIndex: "operation", align: "center", scopedSlots: { customRender: "operation" }, width: "180px" },
       ],
       editFileVisible: false,
       addFileFolderVisible: false,
-      // 目录1 文件2 标识
-      addFileOrFolderType: 1,
-      fileFolderName: "",
     };
   },
   mounted() {
+    this.listShowDir = Boolean(localStorage.getItem("ssh-list-show-dir"));
     this.loadData();
   },
   computed: {
     nowPath() {
-      if (!this.tempNode.parentDir || !this.tempNode.path) {
+      if (!this.tempNode.allowPathParent) {
         return "";
       }
-      return ((this.tempNode.path || "") + (this.tempNode.parentDir || "")).replace(new RegExp("//", "gm"), "/");
+      return ((this.tempNode.allowPathParent || "") + "/" + (this.tempNode.nextPath || "")).replace(new RegExp("//+", "gm"), "/");
+    },
+    baseUrl() {
+      if (this.sshId) {
+        return "/node/ssh/";
+      }
+      return "/system/assets/ssh-file/";
+    },
+    reqDataId() {
+      return this.sshId || this.machineSshId;
     },
   },
   methods: {
+    renderSize,
     // 加载数据
     loadData() {
       this.loading = true;
-      getRootFileList(this.ssh.id).then((res) => {
+      getRootFileList(this.baseUrl, this.reqDataId).then((res) => {
         if (res.code === 200) {
-          let tempList = [];
-          res.data.forEach((element) => {
-            tempList.push({
-              key: element.path,
-              title: element.path,
-              path: element.path,
-              parentDir: "/",
+          this.treeList = res.data.map((element) => {
+            return {
+              key: element.id,
+              name: element.allowPathParent,
+              allowPathParent: element.allowPathParent,
+              nextPath: "/",
               isLeaf: false,
-              disabled: element.error ? true : false,
-            });
+              // 配置的白名单目录可能不存在
+              disabled: !!element.error,
+            };
           });
-          this.treeList = tempList;
+        }
+        this.loading = false;
+      });
+    }, // 选中目录
+    onSelect(selectedKeys, { node }) {
+      return new Promise((resolve) => {
+        if (node.dataRef.disabled) {
+          resolve();
+          return;
+        }
+        // console.log(node.dataRef, this.tempNode.key);
+        if (node.dataRef.key === this.tempNode.key) {
+          resolve();
+          return;
+        }
+        this.tempNode = node.dataRef;
+        // 请求参数
+        const params = {
+          id: this.reqDataId,
+          allowPathParent: node.dataRef.allowPathParent,
+          nextPath: node.dataRef.nextPath,
+        };
+        this.fileList = [];
+        this.loading = true;
+        // 加载文件
+        getFileList(this.baseUrl, params).then((res) => {
+          if (res.code === 200) {
+            let children = [];
+            // 区分目录和文件
+            res.data.forEach((element) => {
+              if (element.dir) {
+                if (this.listShowDir) {
+                  this.fileList.push({
+                    // path: node.dataRef.path,
+                    ...element,
+                  });
+                }
+                children.push({
+                  key: element.id,
+                  name: element.name,
+                  allowPathParent: node.dataRef.allowPathParent,
+                  nextPath: (element.nextPath + "/" + element.name).replace(new RegExp("//+", "gm"), "/"),
+                  isLeaf: !element.dir,
+                  // 可能有错误
+                  disabled: !!element.error,
+                });
+              } else {
+                // 设置文件表格
+                this.fileList.push({
+                  // path: node.dataRef.path,
+                  ...element,
+                });
+              }
+            });
+            // 设置目录树
+            node.dataRef.children = children;
+            this.treeList = [...this.treeList];
+          }
+          this.loading = false;
+        });
+        resolve();
+      });
+    },
+    changeListShowDir() {
+      this.loadFileList();
+      localStorage.setItem("ssh-list-show-dir", this.listShowDir);
+    },
+    // 加载文件列表
+    loadFileList() {
+      if (Object.keys(this.tempNode).length === 0) {
+        this.$notification.warn({
+          message: "请选择一个节点",
+        });
+        return false;
+      }
+      // 请求参数
+      const params = {
+        id: this.reqDataId,
+        allowPathParent: this.tempNode.allowPathParent,
+        nextPath: this.tempNode.nextPath,
+      };
+      // this.fileList = [];
+      this.loading = true;
+      // 加载文件
+      getFileList(this.baseUrl, params).then((res) => {
+        if (res.code === 200) {
+          // 区分目录和文件
+          this.fileList = res.data
+            .filter((element) => {
+              if (this.listShowDir) {
+                return true;
+              }
+              return !element.dir;
+            })
+            .map((element) => {
+              // 设置文件表格
+              return {
+                // path: this.tempNode.path,
+                ...element,
+              };
+            });
         }
         this.loading = false;
       });
@@ -221,13 +341,27 @@ export default {
     },
     handleAddFolder() {
       this.addFileFolderVisible = true;
-      this.addFileOrFolderType = 1;
-      this.fileFolderName = "";
+      // 目录1 文件2 标识
+      // addFileOrFolderType: 1,
+      //       fileFolderName: "",
+      this.temp = {
+        fileFolderName: "",
+        addFileOrFolderType: 1,
+        allowPathParent: this.tempNode.allowPathParent,
+        nextPath: this.tempNode.nextPath,
+      };
     },
     handleAddFile() {
       this.addFileFolderVisible = true;
-      this.addFileOrFolderType = 2;
-      this.fileFolderName = "";
+      // 目录1 文件2 标识
+      // addFileOrFolderType: 1,
+      //       fileFolderName: "",
+      this.temp = {
+        fileFolderName: "",
+        addFileOrFolderType: 2,
+        allowPathParent: this.tempNode.allowPathParent,
+        nextPath: this.tempNode.nextPath,
+      };
     },
     // closeAddFileFolder() {
     //   this.addFileFolderVisible = false;
@@ -236,12 +370,13 @@ export default {
     // 确认新增文件  目录
     startAddFileFolder() {
       const params = {
-        id: this.ssh.id,
-        path: this.nowPath,
-        name: this.fileFolderName,
-        unFolder: this.addFileOrFolderType === 1 ? false : true,
+        id: this.reqDataId,
+        allowPathParent: this.temp.allowPathParent,
+        nextPath: this.temp.nextPath,
+        name: this.temp.fileFolderName,
+        unFolder: this.temp.addFileOrFolderType !== 1,
       };
-      newFileFolder(params).then((res) => {
+      newFileFolder(this.baseUrl, params).then((res) => {
         if (res.code === 200) {
           this.$notification.success({
             message: res.msg,
@@ -270,12 +405,12 @@ export default {
       this.uploadFileList.forEach((file) => {
         const formData = new FormData();
         formData.append("file", file);
-        formData.append("id", this.ssh.id);
-        formData.append("name", this.tempNode.parentDir);
+        formData.append("id", this.reqDataId);
+        formData.append("allowPathParent", this.tempNode.allowPathParent);
         formData.append("unzip", this.uploadFileZip);
-        formData.append("path", this.tempNode.path);
+        formData.append("nextPath", this.tempNode.nextPath);
         // 上传文件
-        uploadFile(formData).then((res) => {
+        uploadFile(this.baseUrl, formData).then((res) => {
           if (res.code === 200) {
             this.$notification.success({
               message: res.msg,
@@ -287,101 +422,19 @@ export default {
         });
       });
     },
-    // 选中目录
-    onSelect(selectedKeys, { node }) {
-      return new Promise((resolve) => {
-        this.tempNode = node.dataRef;
-        if (node.dataRef.disabled) {
-          resolve();
-          return;
-        }
-        // 请求参数
-        const params = {
-          id: this.ssh.id,
-          path: node.dataRef.path,
-          children: node.dataRef.parentDir,
-        };
-        this.fileList = [];
-        this.loading = true;
-        // 加载文件
-        getFileList(params).then((res) => {
-          if (res.code === 200) {
-            let children = [];
-            // 区分目录和文件
-            res.data.forEach((element) => {
-              if (element.dir) {
-                children.push({
-                  key: element.id,
-                  title: element.title,
-                  name: element.name,
-                  path: node.dataRef.path,
-                  parentDir: element.parentDir,
-                  isLeaf: element.dir ? false : true,
-                  disabled: element.error ? true : false,
-                });
-              } else {
-                // 设置文件表格
-                this.fileList.push({
-                  path: node.dataRef.path,
-                  ...element,
-                });
-              }
-            });
-            // 设置目录树
-            node.dataRef.children = children;
-            this.treeList = [...this.treeList];
-          }
-          this.loading = false;
-        });
-        resolve();
-      });
-    },
-    // 加载文件列表
-    loadFileList() {
-      if (Object.keys(this.tempNode).length === 0) {
-        this.$notification.warn({
-          message: "请选择一个节点",
-        });
-        return false;
-      }
-      // 请求参数
-      const params = {
-        id: this.ssh.id,
-        path: this.tempNode.path,
-        children: this.tempNode.parentDir,
-      };
-      this.fileList = [];
-      this.loading = true;
-      // 加载文件
-      getFileList(params).then((res) => {
-        if (res.code === 200) {
-          // 区分目录和文件
-          this.fileList = res.data
-            .filter((element) => {
-              return !element.dir;
-            })
-            .map((element) => {
-              // 设置文件表格
-              return {
-                path: this.tempNode.path,
-                ...element,
-              };
-            });
-        }
-        this.loading = false;
-      });
-    },
+
     // 编辑
     handleEdit(record) {
       this.temp = Object.assign({}, record);
       const params = {
-        id: this.ssh.id,
-        path: record.path,
-        children: record.parentDir,
+        id: this.reqDataId,
+        allowPathParent: record.allowPathParent,
+        nextPath: record.nextPath,
+        name: record.name,
       };
-      readFile(params).then((res) => {
-        if (res.code == 200) {
-          this.temp.fileContent = res.data;
+      readFile(this.baseUrl, params).then((res) => {
+        if (res.code === 200) {
+          this.temp = { ...this.temp, fileContent: res.data };
           this.editFileVisible = true;
         }
       });
@@ -389,43 +442,33 @@ export default {
     },
     updateFileData() {
       const params = {
-        id: this.ssh.id,
-        path: this.temp.path,
-        children: this.temp.parentDir,
+        id: this.reqDataId,
+        allowPathParent: this.temp.allowPathParent,
+        nextPath: this.temp.nextPath,
+        name: this.temp.name,
         content: this.temp.fileContent,
       };
-      updateFileData(params).then((res) => {
-        this.$notification.success({
-          message: res.msg,
-        });
-        if (res.code == 200) {
+
+      updateFileData(this.baseUrl, params).then((res) => {
+        if (res.code === 200) {
+          this.$notification.success({
+            message: res.msg,
+          });
           this.editFileVisible = false;
         }
       });
-    },
-    // 查看
-    handlePreview(record) {
-      this.temp = Object.assign({}, record);
-      this.terminalVisible = true;
     },
     // 下载
     handleDownload(record) {
       // 请求参数
       const params = {
-        id: this.ssh.id,
-        path: record.path,
-        name: record.parentDir,
+        id: this.reqDataId,
+        allowPathParent: record.allowPathParent,
+        nextPath: record.nextPath,
+        name: record.name,
       };
       // 请求接口拿到 blob
-      downloadFile(params).then((blob) => {
-        const url = window.URL.createObjectURL(blob);
-        let link = document.createElement("a");
-        link.style.display = "none";
-        link.href = url;
-        link.setAttribute("download", record.name);
-        document.body.appendChild(link);
-        link.click();
-      });
+      window.open(downloadFile(this.baseUrl, params), "_blank");
     },
     // 删除文件夹
     handleDeletePath() {
@@ -437,18 +480,20 @@ export default {
         onOk: () => {
           // 请求参数
           const params = {
-            id: this.ssh.id,
-            path: this.tempNode.path,
-            name: this.tempNode.parentDir,
+            id: this.reqDataId,
+            allowPathParent: this.tempNode.allowPathParent,
+            nextPath: this.tempNode.nextPath,
           };
           // 删除
-          deleteFile(params).then((res) => {
+          deleteFile(this.baseUrl, params).then((res) => {
             if (res.code === 200) {
               this.$notification.success({
                 message: res.msg,
               });
               // 刷新树
               this.loadData();
+              this.fileList = [];
+              //this.loadFileList();
             }
           });
         },
@@ -464,12 +509,13 @@ export default {
         onOk: () => {
           // 请求参数
           const params = {
-            id: this.ssh.id,
-            path: record.path,
-            name: record.parentDir,
+            id: this.reqDataId,
+            allowPathParent: record.allowPathParent,
+            nextPath: record.nextPath,
+            name: record.name,
           };
           // 删除
-          deleteFile(params).then((res) => {
+          deleteFile(this.baseUrl, params).then((res) => {
             if (res.code === 200) {
               this.$notification.success({
                 message: res.msg,
@@ -483,20 +529,22 @@ export default {
     handleRenameFile(record) {
       this.renameFileFolderVisible = true;
       this.temp = {
-        fileFolderName: record.title,
-        oldFileFolderName: record.title,
-        path: record.path,
+        fileFolderName: record.name,
+        oldFileFolderName: record.name,
+        allowPathParent: record.allowPathParent,
+        nextPath: record.nextPath,
       };
     },
     // 确认修改文件 目录名称
     renameFileFolder() {
       const params = {
-        id: this.ssh.id,
-        path: this.temp.path,
+        id: this.reqDataId,
         name: this.temp.oldFileFolderName,
         newname: this.temp.fileFolderName,
+        allowPathParent: this.temp.allowPathParent,
+        nextPath: this.temp.nextPath,
       };
-      renameFileFolder(params).then((res) => {
+      renameFileFolder(this.baseUrl, params).then((res) => {
         if (res.code === 200) {
           this.$notification.success({
             message: res.msg,
@@ -509,16 +557,22 @@ export default {
   },
 };
 </script>
-<style scoped lang="stylus">
+<style scoped>
 .ssh-file-layout {
   padding: 0;
-  min-height calc(100vh - 75px);
+  min-height: calc(100vh - 75px);
+}
+
+.dir-container {
+  padding: 10px;
+  border-bottom: 1px solid #eee;
 }
 
 .sider {
   border: 1px solid #e2e2e2;
   /* height: calc(100vh - 80px); */
   /* overflow-y: auto; */
+  overflow-x: auto;
 }
 
 .file-content {

@@ -1,0 +1,60 @@
+alterType,tableName,name,type,len,defaultValue,comment,notNull
+ADD,MACHINE_DOCKER_INFO,swarmCreatedAt,Long,,,集群的创建时间
+ADD,MACHINE_DOCKER_INFO,swarmUpdatedAt,Long,,,集群的更新时间
+ADD,MACHINE_DOCKER_INFO,swarmNodeAddr,String,50,,节点 地址
+DROP,DOCKER_INFO,apiVersion
+DROP,DOCKER_INFO,dockerVersion
+DROP,DOCKER_SWARM_INFO,dockerId,
+DROP,DOCKER_SWARM_INFO,swarmCreatedAt,
+DROP,DOCKER_SWARM_INFO,swarmUpdatedAt,
+DROP,DOCKER_SWARM_INFO,nodeAddr,
+DROP,DOCKER_SWARM_INFO,status,
+DROP,DOCKER_SWARM_INFO,failureMsg,
+DROP,DOCKER_INFO,status
+DROP,DOCKER_INFO,failureMsg
+DROP,USEROPERATELOGV1,reqId
+ADD,USEROPERATELOGV1,workspaceName,String,50,,工作空间名
+ADD,USEROPERATELOGV1,username,String,50,,用户名
+ADD,MACHINE_NODE_INFO,transportEncryption,TINYINT,,,传输加密方式 0 不加密 1 BASE64 2 AES
+DROP,COMMAND_INFO,type,
+ADD,MACHINE_SSH_INFO,osName,String,50,,系统名称,false
+ADD,MACHINE_SSH_INFO,hostName,String,255,,机器主机名,false
+ADD,MACHINE_SSH_INFO,osLoadAverage,String,100,,系统负载,false
+ADD,MACHINE_SSH_INFO,osSystemUptime,Long,,,系统运行时间（自启动以来的时间）,false
+ADD,MACHINE_SSH_INFO,osVersion,String,255,,系统版本,false
+ADD,MACHINE_SSH_INFO,osCpuCores,Integer,,,CPU数,false
+ADD,MACHINE_SSH_INFO,osMoneyTotal,Long,,,总内存,false
+ADD,MACHINE_SSH_INFO,osFileStoreTotal,Long,,,硬盘大小,false
+ADD,MACHINE_SSH_INFO,osCpuIdentifierName,String,255,,CPU 型号,false
+ADD,MACHINE_SSH_INFO,osOccupyCpu,Double,,,占用cpu,false
+ADD,MACHINE_SSH_INFO,osOccupyMemory,Double,,,占用内存,false
+ADD,MACHINE_SSH_INFO,osMaxOccupyDisk,Double,,,占用磁盘,false
+ADD,MACHINE_SSH_INFO,osMaxOccupyDiskName,String,255,,占用磁盘 分区名,false
+ADD,MACHINE_SSH_INFO,javaVersion,String,255,,java版本,false
+ADD,MACHINE_SSH_INFO,jpomAgentPid,Integer,,,jpom agent进程号
+ADD,FILE_STORAGE,status,TINYINT,,,0 下载中 1 下载完成 3 下载异常,false
+ADD,FILE_STORAGE,progressDesc,String,255,,进度描述,false
+ADD,FILE_STORAGE,triggerToken,String,200,,触发器token,false
+ALTER,FILE_STORAGE,name,String,255,,名称,true
+ADD,BUILD_INFO,aliasCode,String,50,,别名码,false
+ADD,FILE_STORAGE,aliasCode,String,50,,别名码,false
+ADD,PROJECT_INFO,dslContent,TEXT,,,dslContent,false
+DROP,PROJECT_INFO,jdkId,
+ADD,PROJECT_INFO,autoStart,TINYINT,,,在启动,false
+ADD,MACHINE_DOCKER_INFO,certInfo,String,100,,证书信息,false
+ADD,CERTIFICATE_INFO,fingerprint,String,50,,证书指纹,false
+ADD,MACHINE_DOCKER_INFO,certExist,TINYINT,,,证书是否存在,false
+ADD,REPOSITORY,createUser,String,50,,创建人,false
+ADD,SERVER_SCRIPT_INFO,createUser,String,50,,创建人,false
+ADD,BUILD_INFO,statusMsg,TEXT,,,状态信息
+ADD,BUILDHISTORYLOG,statusMsg,TEXT,,,状态信息
+ADD,SCRIPT_INFO,createUser,String,50,,创建人,false
+ADD,SCRIPT_INFO,nodeName,String,50,,节点名称,false
+ADD,PROJECT_INFO,nodeName,String,50,,节点名称,false
+ADD,SCRIPT_EXECUTE_LOG,nodeName,String,50,,节点名称,false
+ADD,SCRIPT_INFO,workspaceName,String,50,,工作空间名称,false
+ADD,PROJECT_INFO,workspaceName,String,50,,工作空间名称,false
+ADD,SCRIPT_EXECUTE_LOG,workspaceName,String,50,,工作空间名称,false
+ALTER,REPOSITORY,password,String,255,,登录密码,false
+ADD,WORKSPACE,group,String,50,,分组,false
+ADD,MACHINE_SSH_INFO,dockerInfo,String,255,,服务器中的 docker 信息,false

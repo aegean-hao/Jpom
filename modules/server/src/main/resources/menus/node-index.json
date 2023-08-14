@@ -6,29 +6,12 @@
   },
   {
     "id": "manage",
-    "title": "项目管理",
+    "title": "项目&脚本",
     "icon_v3": "project",
     "childs": [
       {
         "id": "manageList",
         "title": "项目列表"
-      },
-      {
-        "id": "jdkList",
-        "title": "JDK管理",
-        "role": "system"
-      }
-    ]
-  },
-  {
-    "id": "otherM",
-    "title": "其他功能",
-    "icon_v3": "more",
-    "childs": [
-      {
-        "id": "tomcatManage",
-        "title": "Tomcat管理",
-        "role": "system"
       },
       {
         "id": "script",
@@ -59,7 +42,7 @@
   },
   {
     "id": "systemConfig",
-    "title": "系统管理",
+    "title": "插件端配置",
     "icon_v3": "setting",
     "childs": [
       {
@@ -76,11 +59,6 @@
         "id": "logManage",
         "title": "系统日志",
         "role": "system"
-      },
-      {
-        "id": "update",
-        "title": "在线升级",
-        "role": "sys"
       },
       {
         "id": "sysConfig",
